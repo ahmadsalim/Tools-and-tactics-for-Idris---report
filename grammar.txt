@@ -1,0 +1,625 @@
+{- Header and Imports are currently parsed separatly -}
+Main ::= Header Import* Prog EOF;
+
+{-
+  shortcut notation:
+    ~CHARSEQ = complement of char sequence (i.e. any character except CHARSEQ)
+    RULE? = optional rule (i.e. RULE or nothing)
+    RULE* = repeated rule (i.e. RULE zero or more times)
+    RULE+ = repeated rule with at least one match (i.e. RULE one or more times)
+    RULE! = invalid rule (i.e. rule that is not valid in context, report meaningful error in case)
+    RULE{n} = rule repeated n times
+-}
+
+EOL_t ::= '\r' '\n' | '\r' | '\n';
+
+StringChar_t* = {- Any valid Haskell string character or escape code -};
+StringLiteral_t ::= '"' StringChar_t* '"';
+
+DocCommentMarker_t ::= '|' | '^';
+
+DocComment_t ::=   '--' DocCommentMarker_t ~EOL_t* EOL_t
+                 | '{-' DocCommentMarket_t ~'-}'* '-}'
+                 ;
+
+SingleLineComment_t ::= '--' EOL_t
+                  |     '--' ~DocCommentMarker_t ~EOL_t* EOL_t
+                  ;
+
+MultiLineComment_t ::=
+  '{--}'
+  | '{-' ~DocCommentMarker_t InCommentChars_t
+  ;
+
+{- FIXME: It is wrong to parse '-}{' too as it also parses doc comments and ignores them-}
+InCommentChars_t ::=
+  '-}'
+  | DocComment_t InCommentChars_t
+  | MultiLineComment_t InCommentChars_t
+  | ~'-}{'+ InCommentChars_t
+  | '-}{' InCommentChars_t
+  ;
+
+
+Whitespace_t ::=
+  SimpleWhitespace_t
+  | SingleLineComment_t
+  | MultiLineComment_t
+  ;
+
+Identifier_t ::= ['a'-'z''A'-'Z']['a'-'z''A'-'Z''0'-'9''_''.']+;
+Operator_t ::= [':''!''#''$''%''&''*''+''.''/''<''=''>''?''@''\\''^''|''-''~']+
+
+Header ::= 'module' Identifier_t ';'?;
+
+Import ::= 'import' Identifier_t ';'?;
+
+Prog ::= Decl*;
+
+Decl ::=
+    Decl'
+  | Using
+  | Params
+  | Mutual
+  | Namespace
+  | Class
+  | Instance
+  | DSL
+  | Directive
+  | Provider
+  | Transform
+  | Import!
+  ;
+
+Decl' ::=
+    Fixity
+  | FunDecl'
+  | Data
+  | Record
+  | SyntaxDecl
+  ;
+
+{- NOTE: Save syntax rules in state while parsing -}
+SyntaxDecl ::= SyntaxRule;
+
+SyntaxRuleOpts ::= 'term' | 'pattern';
+
+{- Fail when all syntax symbols are expressions or a name is repeated -}
+SyntaxRule ::=
+  SyntaxRuleOpts? 'syntax' SyntaxSym+ '=' TypeExpr Terminator;
+
+SyntaxSym ::=   '[' Name_t ']'
+             |  '{' Name_t '}'
+             |  Name_t
+             |  StringLiteral_t
+             ;
+
+FunDecl ::= FunDecl';
+
+{- NOTE: Check compatible options -}
+FunDecl' ::=
+  DocComment_t? FnOpts* Accessibility? FnOpts* FunctionName TypeSignature Terminator
+  | Postulate
+  | Pattern
+  | CAF
+  ;
+
+Postulate ::=
+  DocComment_t? 'postulate' FnOpts* Accesibility? FnOpts* FunctionName TypeSignature Terminator
+  ;
+
+Using ::=
+  'using' '(' UsingDeclList ')' OpenBlock Decl+ CloseBlock
+  ;
+
+Params ::=
+  'parameters' '(' TypeDeclList ')' OpenBlock Decl+ CloseBlock
+  ;
+
+Mutual ::=
+  'mutual' OpenBlock Decl+ CloseBlock
+  ;
+
+Namespace ::=
+  'namespace' identifier OpenBlock Decl+ CloseBlock
+  ;
+
+Fixity ::=
+  FixityType Natural_t OperatorList Terminator
+  ;
+
+FixityType ::=
+  'infixl'
+  | 'infixr'
+  | 'infix'
+  | 'prefix'
+  ;
+
+OperatorList ::=
+  Operator_t
+  | Operator_t ',' OperatorList
+  ;
+
+Class ::=
+  DocComment_t?  Accessibility? 'class' ConstraintList? Name ClassArgument* 'where' OpenBlock FunDecl* CloseBlock
+  ;
+
+ClassArgument ::=
+   Name
+   | '(' Name ':' Expr ')'
+   ;
+
+Instance ::=
+  'instance' NamedInstance? ConstraintList? Name SimpleExpr* 'where' OpenBlock FunDecl* CloseBlock;
+
+NamedInstance ::= '[' Name ']';
+
+Expr ::= Expr';
+
+Expr' ::= {- External (User-defined) Syntax -}
+      |   InternalExpr;
+
+InternalExpr ::=
+  App
+  | MatchApp
+  | UnifyLog
+  | RecordType
+  | SimpleExpr
+  | Lambda
+  | QuoteGoal
+  | Let
+  | RewriteTerm
+  | Pi
+  | DoBlock
+  ;
+
+Name ::= IName_t;
+
+OperatorFront ::= '(' Operator_t ')';
+
+FunctionName ::= Name | OperatorFront;
+
+Accessibility ::= 'public' | 'abstract' | 'private';
+
+FnOpts ::= 'total'
+  | 'partial'
+  | 'implicit'
+  | '%' 'assert_total'
+  | '%' 'reflection'
+  | '%' 'specialise' '[' NameTimesList? ']'
+  ;
+
+NameTimes ::= FunctionName Natural?;
+
+NameTimesList ::=
+  NameTimes
+  | NameTimes ',' NameTimesList
+  ;
+
+CaseExpr ::=
+  'case' Expr 'of' OpenBlock CaseOption+ CloseBlock;
+
+CaseOption ::=
+  Expr '=>' Expr KeepTerminator
+  ;
+
+
+{- NOTE: Consider using OpenBlock CloseBlock for proofs and tactics -}
+ProofExpr ::=
+  'proof' OpenBlock Tactic'* CloseBlock
+  ;
+
+TacticsExpr :=
+  'tactics' OpenBlock Tactic'* CloseBlock
+;
+
+Tactic' ::=
+  Tactic KeepTerminator
+;
+
+ReflOpt ::=
+  '{' Expr '}'
+
+SimpleExpr ::=
+  '![' Term ']'
+  | '?' Name
+  | % 'instance'
+  | 'refl' ReflOpt?
+  | ProofExpr
+  | TacticsExpr
+  | CaseExpr
+  | FunctionName
+  | List
+  | Comprehension
+  | Alt
+  | Idiom
+  | '(' Bracketed
+  | Constant
+  | Type
+  | '()'
+  | '_|_'
+  | '_'
+  | {- External (User-defined) Simple Expression -}
+  ;
+
+Bracketed ::=
+  | Pair
+  | Expr ')'
+  | Operator Expr ')'
+  | Expr Operator ')'
+  ;
+
+
+ListExpr ::=
+  '[' ExprList? ']'
+;
+
+ExprList ::=
+  Expr
+  | Expr ',' ExprList
+  ;
+
+Pair ::=
+    Expr RestTuple? ')'
+  | NTuple ')'
+  | Name ':' Expr '**' 'Expr' ')'
+  ;
+
+RestTuple ::=
+    ',' Expr
+  | '**' Expr
+  ;
+
+NTuple ::=
+     Expr ',' Expr
+   | Expr ',' NTuple
+   ;
+
+Alt ::= '(|' Expr_List '|)';
+
+Expr_List ::=
+  Expr'
+  | Expr' ',' Expr_List
+  ;
+
+HSimpleExpr ::=
+  '.' SimpleExpr
+  | SimpleExpr
+  ;
+
+MatchApp ::=
+  SimpleExpr '<==' FunctionName
+  ;
+
+UnifyLog ::=
+  '%' 'unifyLog' SimpleExpr
+  ;
+
+App ::=
+  'mkForeign' Arg Arg*
+  | SimpleExpr Arg+
+  ;
+
+Arg ::=
+  ImplicitArg
+  | ConstraintArg
+  | SimpleExpr
+  ;
+
+ImplicitArg ::=
+  '{' Name ImplictExprOpt? '}'
+  ;
+
+ImplicitExprOpt ::=
+  '=' Expr
+  ;
+
+ConstraintArg ::=
+  '@{' Expr '}'
+  ;
+
+RecordType ::=
+  'record' '{' FieldTypeList '}';
+
+FieldTypeList ::=
+  FieldType
+  | FieldType ',' FieldTypeList
+  ;
+
+FieldType ::=
+  FunctionName '=' Expr
+  ;
+
+TypeSignature ::=
+  ':' Expr
+  ;
+
+TypeExpression ::= Expr;
+
+Lambda ::=
+    '\\' TypeOptDeclList '=>' Expr
+  | '\\' SimpleExprList  '=>' Expr
+  ;
+
+SimpleExprList ::=
+  SimpleExpr
+  | SimpleExpr ',' SimpleExprList
+  ;
+
+RewriteTerm ::= 
+  'rewrite' Expr Giving? 'in' Expr
+  ;
+
+Giving ::=
+  '==>' Expr
+  ;
+
+Let ::=
+  'let' Name TypeSignature'? '=' Expr 'in' Expr
+| 'let' Expr'                '=' Expr' 'in' Expr
+
+TypeSignature' ::=
+  ':' Expr'
+  ;
+
+QuoteGoal ::=
+  'quoteGoal' Name 'by' Expr 'in' Expr
+  ;
+
+Pi ::=
+    '|'? Static? '('           TypeDeclList ')' DocComment '->' Expr
+  | '|'? Static? '{'           TypeDeclList '}'            '->' Expr
+  |              '{' 'auto'    TypeDeclList '}'            '->' Expr
+  |              '{' 'default' TypeDeclList '}'            '->' Expr
+  |              '{' 'static'               '}' Expr'      '->' Expr
+  ;
+
+ConstraintList ::=
+    '(' Expr_List ')' '=>'
+  | Expr              '=>'
+  ;
+
+UsingDeclList ::=
+  UsingDeclList'
+  | NameList TypeSignature
+  ;
+
+UsingDeclList' ::=
+  UsingDecl
+  | UsingDecl ',' UsingDeclList'
+  ;
+
+NameList ::=
+  Name
+  | Name ',' NameList
+  ;
+
+UsingDecl ::=
+  FunctionName TypeSignature
+  | FunctionName FunctionName+
+  ;
+
+TypeDeclList ::=
+    FunctionSignatureList
+  | NameList TypeSignature
+  ;
+
+FunctionSignatureList ::=
+    Name TypeSignature
+  | Name TypeSignature ',' FunctionSignatureList
+  ;
+
+TypeOptDeclList ::=
+    NameOrPlaceholder TypeSignature?
+  | NameOrPlaceholder TypeSignature? ',' TypeOptDeclList
+  ;
+
+NameOrPlaceHolder ::= Name | '_';
+
+Comprehension ::= '[' Expr '|' DoList ']';
+
+DoList ::=
+    Do
+  | Do ',' DoList
+  ;
+
+Do' ::= Do KeepTerminator;
+
+DoBlock ::=
+  'do' OpenBlock Do'+ CloseBlock
+  ;
+
+Do ::=
+    'let' Name  TypeSignature? '=' Expr
+  | 'let' Expr'                '=' Expr
+  | Name  '<-' Expr
+  | Expr' '<-' Expr
+  | Expr
+  ;
+
+Idiom ::= '[|' Expr '|]';
+
+Constant ::=
+    'Integer'
+  | 'Int'
+  | 'Char'
+  | 'Float'
+  | 'String'
+  | 'Ptr'
+  | 'Bits8'
+  | 'Bits16'
+  | 'Bits32'
+  | 'Bits64'
+  | 'Bits8x16'
+  | 'Bits16x8'
+  | 'Bits32x4'
+  | 'Bits64x2'
+  | Float_t
+  | Natural_t
+  | String_t
+  | Char_t
+  ;
+
+Static ::=
+  '[' static ']'
+;
+
+Record ::=
+    DocComment Accessibility? 'record' FunctionName TypeSignature 'where' OpenBlock Constructor KeepTerminator CloseBlock;
+
+DataI ::= 'data' | 'codata';
+
+Data ::= DocComment? Accessibility? DataI FunctionName TypeSignature ExplicitTypeDataRest?
+       | DocComment? Accessibility? DataI FunctionName Name*         DataRest?
+       ;
+
+Constructor' ::= Constructor KeepTerminator;
+
+ExplicitTypeDataRest ::= 'where' OpenBlock Constructor'* CloseBlock;
+
+DataRest ::= '=' SimpleConstructorList Terminator
+            | 'where'!
+           ;
+
+SimpleConstructorList ::=
+    SimpleConstructor
+  | SimpleConstructor '|' SimpleConstructorList
+  ;
+
+Constructor ::= DocComment? FunctionName TypeSignature;
+SimpleConstructor ::= FunctionName SimpleExpr* DocComment?
+
+Overload' ::= Overload KeepTerminator;
+
+DSL ::= 'dsl' FunctionName OpenBlock Overload'+ CloseBlock;
+
+OverloadIdentifier ::= 'let' | Identifier;
+
+Overload ::= OverloadIdentifier '=' Expr;
+
+Pattern ::= Clause;
+
+CAF ::= 'let' FunctionName '=' Expr Terminator;
+
+ArgExpr ::= HSimpleExpr | {- In Pattern External (User-defined) Expression -};
+
+RHS ::= '='            Expr
+     |  '?='  RHSName? Expr
+     ;
+
+RHSName ::= '{' FunctionName '}';
+
+Clause ::=                   FunctionName ConstraintArg* ImplicitArg* ArgExpr* WExpr* RHS WhereOrTerminator
+       |   SimpleExpr '<=='  FunctionName                                             RHS WhereOrTerminator
+       |                                                                       WExpr* RHS WhereOrTerminator
+       |                     FunctionName ConstraintArg* ImplicitArg* ArgExpr* WExpr* 'with' SimpleExpr OpenBlock FunDecl+ CloseBlock
+       |                                                                       WExpr* 'with' SimpleExpr OpenBlock FunDecl+ CloseBlock
+       |   ArgExpr Operator ArgExpr                                            WExpr* RHS WhereOrTerminator
+       |   ArgExpr Operator ArgExpr                                            WExpr* 'with' SimpleExpr OpenBlock FunDecl+ CloseBlock
+       ;
+
+WhereOrTerminator ::= WhereBlock | Terminator;
+
+WExpr ::= '|' Expr';
+
+WhereBlock ::= 'where' OpenBlock Decl+ CloseBlock;
+
+Codegen ::= 'C'
+        |   'Java'
+        |   'JavaScript'
+        |   'Node'
+        |   'LLVM'
+        |   'Bytecode'
+        ;
+
+Totality ::= 'partial' | 'total'
+
+StringList ::=
+  String
+  | String ',' StringList
+  ;
+
+Directive ::= '%' Directive';
+
+Directive' ::= 'lib'      CodeGen String_t
+           |   'link'     CodeGen String_t
+           |   'flag'     CodeGen String_t
+           |   'include'  CodeGen String_t
+           |   'hide'     Name
+           |   'freeze'   Name
+           |   'access'   Accessibility
+           |   'default'  Totality
+           |   'logging'  Natural
+           |   'dynamic'  StringList
+           |   'language' 'TypeProviders'
+           ;
+
+Provider ::= '%' 'provide' '(' FunctionName TypeSignature ')' 'with' Expr;
+
+Transform ::= '%' 'transform' Expr '==>' Expr
+
+Tactic ::= 'intro' NameList?
+       |   'intros'
+       |   'refine'      Name Imp+
+       |   'mrefine'     Name
+       |   'rewrite'     Expr
+       |   'equiv'       Expr
+       |   'let'         Name ':' Expr' '=' Expr
+       |   'let'         Name           '=' Expr
+       |   'focus'       Name
+       |   'exact'       Expr
+       |   'applyTactic' Expr
+       |   'reflect'     Expr
+       |   'fill'        Expr
+       |   'try'         Tactic '|' Tactic
+       |   '{'  Tactic ';' Tactic '}' {- Consider converting to list sepBy ';' -}
+       |   'compute'
+       |   'trivial'
+       |   'solve'
+       |   'attack'
+       |   'state'
+       |   'term'
+       |   'undo'
+       |   'qed'
+       |   'abandon'
+       |   ':' 'q'
+       ;
+
+Imp ::= '?' | '_';
+
+{- Open Block Close Block should match i.e. either {} or indentation -}
+
+OpenBlock ::= '{' 
+          | {- Same Indentation Level Or Greater -}
+          ;
+
+CloseBlock ::= '}'
+           | {- Smaller Indentation Level Than Before -}
+           ;
+
+Float_t ::= {- Float literal similar to Haskell -}
+         ;
+
+IName_t ::= {- Any valid identifier except keywords possibly prefixed with a namespace -}
+      ;
+
+Integer_t ::= {- Integer literal similar to Haskell -}
+      ;
+
+Char_t ::= {- Char literal similar to Haskell -}
+      ;
+
+Natural_t ::= {- Natural number literal i.e. [1-9]*[0-9] -}
+          ;
+
+Terminator ::= ';'
+           |  {- Smaller inden than before -}
+           |  {- ')' or '}' is before input -}
+           |  eof
+           ;
+
+KeepTerminator ::= ';'
+           |  {- Smaller inden than before -}
+           |  {- ')' or '}' or '|' is before input -}
+           |  eof
+           ;
