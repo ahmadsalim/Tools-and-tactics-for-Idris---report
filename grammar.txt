@@ -1,5 +1,5 @@
 {- Header and Imports are currently parsed separatly -}
-Main ::= Header Import* Prog EOF;
+Main ::= ModuleHeader Import* Prog;
 
 {-
   shortcut notation:
@@ -11,7 +11,7 @@ Main ::= Header Import* Prog EOF;
     RULE{n} = rule repeated n times
 -}
 
-EOL_t ::= '\r' '\n' | '\r' | '\n';
+EOL_t ::= '\n' | EOF_t;
 
 StringChar_t* = {- Any valid Haskell string character or escape code -};
 StringLiteral_t ::= '"' StringChar_t* '"';
@@ -31,13 +31,10 @@ MultiLineComment_t ::=
   | '{-' ~DocCommentMarker_t InCommentChars_t
   ;
 
-{- FIXME: It is wrong to parse '-}{' too as it also parses doc comments and ignores them-}
 InCommentChars_t ::=
   '-}'
-  | DocComment_t InCommentChars_t
   | MultiLineComment_t InCommentChars_t
-  | ~'-}{'+ InCommentChars_t
-  | '-}{' InCommentChars_t
+  | ~'-}'+ InCommentChars_t
   ;
 
 
@@ -50,11 +47,11 @@ Whitespace_t ::=
 Identifier_t ::= ['a'-'z''A'-'Z']['a'-'z''A'-'Z''0'-'9''_''.']+;
 Operator_t ::= [':''!''#''$''%''&''*''+''.''/''<''=''>''?''@''\\''^''|''-''~']+
 
-Header ::= 'module' Identifier_t ';'?;
+ModuleHeader ::= 'module' Identifier_t ';'?;
 
 Import ::= 'import' Identifier_t ';'?;
 
-Prog ::= Decl*;
+Prog ::= Decl* EOF;
 
 Decl ::=
     Decl'
@@ -73,18 +70,16 @@ Decl ::=
 
 Decl' ::=
     Fixity
-  | FunDecl'
+  | FnDecl'
   | Data
   | Record
   | SyntaxDecl
   ;
 
-{- NOTE: Save syntax rules in state while parsing -}
 SyntaxDecl ::= SyntaxRule;
 
 SyntaxRuleOpts ::= 'term' | 'pattern';
 
-{- Fail when all syntax symbols are expressions or a name is repeated -}
 SyntaxRule ::=
   SyntaxRuleOpts? 'syntax' SyntaxSym+ '=' TypeExpr Terminator;
 
@@ -94,18 +89,18 @@ SyntaxSym ::=   '[' Name_t ']'
              |  StringLiteral_t
              ;
 
-FunDecl ::= FunDecl';
+FnDecl ::= FnDecl';
 
 {- NOTE: Check compatible options -}
-FunDecl' ::=
-  DocComment_t? FnOpts* Accessibility? FnOpts* FunctionName TypeSignature Terminator
+FnDecl' ::=
+  DocComment_t? FnOpts* Accessibility? FnOpts* FnName TypeSig Terminator
   | Postulate
   | Pattern
   | CAF
   ;
 
 Postulate ::=
-  DocComment_t? 'postulate' FnOpts* Accesibility? FnOpts* FunctionName TypeSignature Terminator
+  DocComment_t? 'postulate' FnOpts* Accesibility? FnOpts* FnName TypeSig Terminator
   ;
 
 Using ::=
@@ -140,8 +135,11 @@ OperatorList ::=
   | Operator_t ',' OperatorList
   ;
 
+MethodsBlock ::= 'where' OpenBlock FnDecl* CloseBlock
+           ;
+
 Class ::=
-  DocComment_t?  Accessibility? 'class' ConstraintList? Name ClassArgument* 'where' OpenBlock FunDecl* CloseBlock
+  DocComment_t?  Accessibility? 'class' ConstraintList? Name ClassArgument* MethodsBlock?
   ;
 
 ClassArgument ::=
@@ -150,9 +148,12 @@ ClassArgument ::=
    ;
 
 Instance ::=
-  'instance' NamedInstance? ConstraintList? Name SimpleExpr* 'where' OpenBlock FunDecl* CloseBlock;
+  'instance' InstanceName? ConstraintList? Name SimpleExpr* MethodsBlock?
+  ;
 
-NamedInstance ::= '[' Name ']';
+InstanceName ::= '[' Name ']';
+
+FullExpr ::= Expr EOF_t;
 
 Expr ::= Expr';
 
@@ -175,9 +176,9 @@ InternalExpr ::=
 
 Name ::= IName_t;
 
-OperatorFront ::= '(' Operator_t ')';
+OperatorFront ::= (Identifier_t '.')? '(' Operator_t ')';
 
-FunctionName ::= Name | OperatorFront;
+FnName ::= Name | OperatorFront;
 
 Accessibility ::= 'public' | 'abstract' | 'private';
 
@@ -189,7 +190,7 @@ FnOpts ::= 'total'
   | '%' 'specialise' '[' NameTimesList? ']'
   ;
 
-NameTimes ::= FunctionName Natural?;
+NameTimes ::= FnName Natural?;
 
 NameTimesList ::=
   NameTimes
@@ -200,7 +201,7 @@ CaseExpr ::=
   'case' Expr 'of' OpenBlock CaseOption+ CloseBlock;
 
 CaseOption ::=
-  Expr '=>' Expr KeepTerminator
+  Expr '=>' Expr Terminator
   ;
 
 
@@ -214,21 +215,19 @@ TacticsExpr :=
 ;
 
 Tactic' ::=
-  Tactic KeepTerminator
+  Tactic Terminator
 ;
 
-ReflOpt ::=
-  '{' Expr '}'
 
 SimpleExpr ::=
   '![' Term ']'
   | '?' Name
   | % 'instance'
-  | 'refl' ReflOpt?
+  | 'refl' ('{' Expr '}')?
   | ProofExpr
   | TacticsExpr
   | CaseExpr
-  | FunctionName
+  | FnName
   | List
   | Comprehension
   | Alt
@@ -288,7 +287,7 @@ HSimpleExpr ::=
   ;
 
 MatchApp ::=
-  SimpleExpr '<==' FunctionName
+  SimpleExpr '<==' FnName
   ;
 
 UnifyLog ::=
@@ -307,11 +306,7 @@ Arg ::=
   ;
 
 ImplicitArg ::=
-  '{' Name ImplictExprOpt? '}'
-  ;
-
-ImplicitExprOpt ::=
-  '=' Expr
+  '{' Name ('=' Expr)? '}'
   ;
 
 ConstraintArg ::=
@@ -327,14 +322,14 @@ FieldTypeList ::=
   ;
 
 FieldType ::=
-  FunctionName '=' Expr
+  FnName '=' Expr
   ;
 
-TypeSignature ::=
+TypeSig ::=
   ':' Expr
   ;
 
-TypeExpression ::= Expr;
+TypeExpr ::= ConstraintList? Expr;
 
 Lambda ::=
     '\\' TypeOptDeclList '=>' Expr
@@ -347,18 +342,14 @@ SimpleExprList ::=
   ;
 
 RewriteTerm ::= 
-  'rewrite' Expr Giving? 'in' Expr
-  ;
-
-Giving ::=
-  '==>' Expr
+  'rewrite' Expr ('==>' Expr)? 'in' Expr
   ;
 
 Let ::=
-  'let' Name TypeSignature'? '=' Expr 'in' Expr
+  'let' Name TypeSig'? '=' Expr 'in' Expr
 | 'let' Expr'                '=' Expr' 'in' Expr
 
-TypeSignature' ::=
+TypeSig' ::=
   ':' Expr'
   ;
 
@@ -381,7 +372,7 @@ ConstraintList ::=
 
 UsingDeclList ::=
   UsingDeclList'
-  | NameList TypeSignature
+  | NameList TypeSig
   ;
 
 UsingDeclList' ::=
@@ -395,23 +386,23 @@ NameList ::=
   ;
 
 UsingDecl ::=
-  FunctionName TypeSignature
-  | FunctionName FunctionName+
+  FnName TypeSig
+  | FnName FnName+
   ;
 
 TypeDeclList ::=
     FunctionSignatureList
-  | NameList TypeSignature
+  | NameList TypeSig
   ;
 
 FunctionSignatureList ::=
-    Name TypeSignature
-  | Name TypeSignature ',' FunctionSignatureList
+    Name TypeSig
+  | Name TypeSig ',' FunctionSignatureList
   ;
 
 TypeOptDeclList ::=
-    NameOrPlaceholder TypeSignature?
-  | NameOrPlaceholder TypeSignature? ',' TypeOptDeclList
+    NameOrPlaceholder TypeSig?
+  | NameOrPlaceholder TypeSig? ',' TypeOptDeclList
   ;
 
 NameOrPlaceHolder ::= Name | '_';
@@ -423,14 +414,14 @@ DoList ::=
   | Do ',' DoList
   ;
 
-Do' ::= Do KeepTerminator;
+Do' ::= Do Terminator;
 
 DoBlock ::=
   'do' OpenBlock Do'+ CloseBlock
   ;
 
 Do ::=
-    'let' Name  TypeSignature? '=' Expr
+    'let' Name  TypeSig? '=' Expr
   | 'let' Expr'                '=' Expr
   | Name  '<-' Expr
   | Expr' '<-' Expr
@@ -465,15 +456,15 @@ Static ::=
 ;
 
 Record ::=
-    DocComment Accessibility? 'record' FunctionName TypeSignature 'where' OpenBlock Constructor KeepTerminator CloseBlock;
+    DocComment Accessibility? 'record' FnName TypeSig 'where' OpenBlock Constructor Terminator CloseBlock;
 
 DataI ::= 'data' | 'codata';
 
-Data ::= DocComment? Accessibility? DataI FunctionName TypeSignature ExplicitTypeDataRest?
-       | DocComment? Accessibility? DataI FunctionName Name*         DataRest?
+Data ::= DocComment? Accessibility? DataI FnName TypeSig ExplicitTypeDataRest?
+       | DocComment? Accessibility? DataI FnName Name*   DataRest?
        ;
 
-Constructor' ::= Constructor KeepTerminator;
+Constructor' ::= Constructor Terminator;
 
 ExplicitTypeDataRest ::= 'where' OpenBlock Constructor'* CloseBlock;
 
@@ -486,12 +477,12 @@ SimpleConstructorList ::=
   | SimpleConstructor '|' SimpleConstructorList
   ;
 
-Constructor ::= DocComment? FunctionName TypeSignature;
-SimpleConstructor ::= FunctionName SimpleExpr* DocComment?
+Constructor ::= DocComment? FnName TypeSig;
+SimpleConstructor ::= FnName SimpleExpr* DocComment?
 
-Overload' ::= Overload KeepTerminator;
+Overload' ::= Overload Terminator;
 
-DSL ::= 'dsl' FunctionName OpenBlock Overload'+ CloseBlock;
+DSL ::= 'dsl' FnName OpenBlock Overload'+ CloseBlock;
 
 OverloadIdentifier ::= 'let' | Identifier;
 
@@ -499,24 +490,29 @@ Overload ::= OverloadIdentifier '=' Expr;
 
 Pattern ::= Clause;
 
-CAF ::= 'let' FunctionName '=' Expr Terminator;
+CAF ::= 'let' FnName '=' Expr Terminator;
 
 ArgExpr ::= HSimpleExpr | {- In Pattern External (User-defined) Expression -};
 
+ImplicitOrArgExpr ::= ImplicitArg | ArgExpr;
+
 RHS ::= '='            Expr
      |  '?='  RHSName? Expr
+     | 'impossible'
      ;
 
-RHSName ::= '{' FunctionName '}';
+RHSName ::= '{' FnName '}';
 
-Clause ::=                   FunctionName ConstraintArg* ImplicitArg* ArgExpr* WExpr* RHS WhereOrTerminator
-       |   SimpleExpr '<=='  FunctionName                                             RHS WhereOrTerminator
-       |                                                                       WExpr* RHS WhereOrTerminator
-       |                     FunctionName ConstraintArg* ImplicitArg* ArgExpr* WExpr* 'with' SimpleExpr OpenBlock FunDecl+ CloseBlock
-       |                                                                       WExpr* 'with' SimpleExpr OpenBlock FunDecl+ CloseBlock
-       |   ArgExpr Operator ArgExpr                                            WExpr* RHS WhereOrTerminator
-       |   ArgExpr Operator ArgExpr                                            WExpr* 'with' SimpleExpr OpenBlock FunDecl+ CloseBlock
+RHSOrWithBlock ::= RHS WhereOrTerminator
+               | 'with' SimpleExpr OpenBlock FnDecl+ CloseBlock
+               ;
+
+Clause ::=                                                               WExpr+ RHSOrWithBlock
+       |   SimpleExpr '<=='  FnName                                             RHS WhereOrTerminator
+       |                     FnName ConstraintArg* ImplicitOrArgExpr*    WExpr* RHSOrWithBlock
+       |   ArgExpr Operator ArgExpr                                      WExpr* RHSOrWithBlock
        ;
+
 
 WhereOrTerminator ::= WhereBlock | Terminator;
 
@@ -554,7 +550,7 @@ Directive' ::= 'lib'      CodeGen String_t
            |   'language' 'TypeProviders'
            ;
 
-Provider ::= '%' 'provide' '(' FunctionName TypeSignature ')' 'with' Expr;
+Provider ::= '%' 'provide' '(' FnName TypeSig ')' 'with' Expr;
 
 Transform ::= '%' 'transform' Expr '==>' Expr
 
@@ -572,7 +568,7 @@ Tactic ::= 'intro' NameList?
        |   'reflect'     Expr
        |   'fill'        Expr
        |   'try'         Tactic '|' Tactic
-       |   '{'  Tactic ';' Tactic '}' {- Consider converting to list sepBy ';' -}
+       |   '{' TacticSeq '}'
        |   'compute'
        |   'trivial'
        |   'solve'
@@ -587,6 +583,11 @@ Tactic ::= 'intro' NameList?
 
 Imp ::= '?' | '_';
 
+TacticSeq ::= 
+    Tactic ';' Tactic
+  | Tactic ';' TacticSeq
+  ;
+
 {- Open Block Close Block should match i.e. either {} or indentation -}
 
 OpenBlock ::= '{' 
@@ -595,6 +596,12 @@ OpenBlock ::= '{'
 
 CloseBlock ::= '}'
            | {- Smaller Indentation Level Than Before -}
+           ;
+
+Terminator ::= ';'
+           |  {- Smaller inden than before -}
+           |  {- '|', ')' or '}' is at start of input -}
+           |  eof
            ;
 
 Float_t ::= {- Float literal similar to Haskell -}
@@ -611,15 +618,3 @@ Char_t ::= {- Char literal similar to Haskell -}
 
 Natural_t ::= {- Natural number literal i.e. [1-9]*[0-9] -}
           ;
-
-Terminator ::= ';'
-           |  {- Smaller inden than before -}
-           |  {- ')' or '}' is before input -}
-           |  eof
-           ;
-
-KeepTerminator ::= ';'
-           |  {- Smaller inden than before -}
-           |  {- ')' or '}' or '|' is before input -}
-           |  eof
-           ;
