@@ -235,18 +235,21 @@ SimpleExpr ::=
   | '(' Bracketed
   | Constant
   | Type
-  | '()'
   | '_|_'
   | '_'
   | {- External (User-defined) Simple Expression -}
   ;
 
 Bracketed ::=
-  | Pair
+  ')'
   | Expr ')'
+  | ExprList ')'
+  | Expr '**' Expr ')'
   | Operator Expr ')'
   | Expr Operator ')'
+  | Name ':' Expr '**' Expr ')'
   ;
+
 
 
 ListExpr ::=
@@ -257,22 +260,6 @@ ExprList ::=
   Expr
   | Expr ',' ExprList
   ;
-
-Pair ::=
-    Expr RestTuple? ')'
-  | NTuple ')'
-  | Name ':' Expr '**' 'Expr' ')'
-  ;
-
-RestTuple ::=
-    ',' Expr
-  | '**' Expr
-  ;
-
-NTuple ::=
-     Expr ',' Expr
-   | Expr ',' NTuple
-   ;
 
 Alt ::= '(|' Expr_List '|)';
 
