@@ -1,0 +1,79 @@
+\documentclass[a4paper]{article}%{llncs}
+\usepackage{listings} % Nice code-boxes
+\usepackage{nameref}
+\usepackage{graphicx} % For \includegraphics
+\usepackage{float}    % For in-line images
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{url} %For urls
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption} % For advanced captioning
+\usepackage{authblk}
+\usepackage{algorithm}
+%\usepackage{subfig}
+\usepackage[noend]{algpseudocode}
+\graphicspath{{Images/}}
+\bibliographystyle{splncs}
+\lstset{basicstyle=\scriptsize\ttfamily,captionpos=b}
+
+% make a proper TOC despite llncs, %http://code.google.com/p/decidr/wiki/LatexLLNCSTableOfContents
+\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{5}
+\makeatletter
+% end TOC fix
+% Pseudocode fix
+\newcommand*\Let[2]{\State #1 $\gets$ #2}
+\algrenewcommand\alglinenumber[1]{
+  {\sf\footnotesize#1}}
+% end Pseudocode fix
+\newtheorem{exm}{Example} %Example theorem
+\newtheorem{dfnt}{Definition} %Definition theorem
+\begin{document}
+
+\let\origthebibliography\thebibliography
+\let\origendthebibliography\endthebibliography
+\newif\ifemptybibliography
+\renewenvironment{thebibliography}[1]
+ {\if\relax\detokenize{#1}\relax\emptybibliographytrue\else\origthebibliography{#1}\fi}
+ {\ifemptybibliography\else\origendthebibliography\fi}
+
+
+\title{Parsing Idris \\ \normalsize{A part of the Tools and Tactics for Idris project}}
+\author{Ahmad Salim Al-Sibahi (\texttt{asal@itu.dk}) \\IT University of Copenhagen\\Supervisors: \\David Raymond Christiansen (\texttt{drc@itu.dk})\\ Dr. Peter Sestoft (\texttt{sestoft@itu.dk})}
+\date{\today}
+
+
+\maketitle
+
+\include{Abstract}
+
+%\tableofcontents
+%\clearpage
+\section{Introduction}
+\label{sec:Introduction}
+\section{Problem}
+\label{sec:Problem}
+\section{Background}
+\label{sec:Background}
+\section{Solution}
+\label{sec:Solution}
+\section{Evaluation}
+\label{sec:Evaluation}
+\section{Threads to Validity}
+\label{sec:ThreadsToValidity}
+\section{Discussion}
+\label{sec:Discussion}
+\section{Conclusion}
+\label{sec:Conclusion}
+
+
+
+
+\let\Section\section  %add "References" to TOC
+\def\section*#1{\Section{#1}}
+
+\bibliography{Report}
+
+\appendix
+
+\end{document}
