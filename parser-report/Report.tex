@@ -54,32 +54,32 @@
 \label{sec:Introduction}
 
 Idris\cite{brady2013idris} is a strict pure dependently-typed programming language inspired by Haskell\cite{marlow2010haskell} and ML-style languages\cite{milner1997definition}.
-As a dependently-typed language, Idris allows types to be indexed by ordinary values such as the natural numbers
-in addition to being parametrised with type variables.
-This makes Idris a powerful language that allows one to reason more formally about one's programs and makes it suitable for a variety of applications
-such as writing verified programs or embedded domain specific languages (EDSLs) where many errors can be reported at compile time.
+As a dependently-typed language Idris allows types to be indexed by values such as the natural numbers, in addition to being parametrised over other types
+like other functional languages.
+This makes Idris suitable for reasoning formally about programs, and makes it suitable for a variety of applications
+such as writing  embedded domain specific languages (EDSLs) because many errors can be reported at compile time.
 
-Yet all this flexibility comes with a price.
-The grammar is vastly complicated since there is no distinction between types and terms, and the focus on EDSLs has brought in more features such as syntactic extensions.
-Partly because of this and partly because of the white space sensitive Haskell-like syntax; Idris is not a particularly trivial language to parse.
+Yet all this flexibility comes at a price.
+Since there is not distinction between, the grammar is vastly complicated. Moreover, the focus on EDSLs has brought in more features such as syntactic extensions,
+which makes reasoning about the complete grammar impossible statically.
+Partly because of this and partly because of the indentation sensitive Haskell-like syntax; Idris is not a particularly trivial language to parse.
 
-As such one carefully need to evaluate the way the grammar is written, and write the parser in such way that there is little room for ambiguity and that the user can get practical error messages.
-Furthermore the source code must be tracked carefully to provide sensible errors all the way through the system, and that external tools can use this to provide additional features such as clickable source code.
+As such one must carefully evaluate the way the grammar is written, and write the parser in such way that there is little room for ambiguity.
+Furthermore, the source code must be tracked carefully in order to provide sensible errors in all parts of the compiler pipeline, and that external tools can use this to provide additional features such as clickable source code.
 
-A parser already exists for Idris, written in the Parsec\cite{leijen2001parsec} library. Yet, because of all the advanced features of Idris and the way the parser is written, error location is highly inaccurate, the error messages are marginally useful
-and it can not be used by other tools for analysis or completion due to lack of incremental parsing.
+A parser written in the Parsec\cite{leijen2001parsec} library already exist for Idris. Yet because of all the advanced features of Idris, and the lack of time spent on the parser to accommodate these features, error locations and messages are highly inaccurate.
 
-In this paper I will outline my work regarding restructuring of the Idris parser, such that the grammar is more sensible, the parser provides better errors and that the source code is more accurately tracked.
-The paper will be structured as follows. In Section~\ref{sec:IdrisSyntax} I will discuss the Idris grammar and what particular difficulties there can be when trying to parse it.
-Section~\ref{sec:Trifecta} discusses the particular parser technology used, and what advantages and challenge it involves. Section~\ref{sec:Solution} describes the specific implementation of the parser, and which improvements was done.
-I evaluate the solution in Section~\ref{sec:Evaluation} and discuss future work in Section~\ref{sec:FutureWork}. Lastly I conclude in Section~\ref{sec:Conclusion}.
+In this paper I will outline my work regarding restructuring of the Idris parser such that the grammar is more sensible, the parser provides better errors and that the source code is tracked more accurately.
+In Section~\ref{sec:IdrisSyntax} I will discuss the Idris grammar and what particular difficulties there can be when trying to parse it.
+Section~\ref{sec:Trifecta} discusses the particular parser technology used, and the advantages of using it. Section~\ref{sec:Solution} describes the specific effort put into improving the grammar and parser of Idris.
+I will evaluate the solution in Section~\ref{sec:Evaluation} and discuss future work in Section~\ref{sec:FutureWork}. Lastly I conclude in Section~\ref{sec:Conclusion}.
 
 \section{Idris Syntax}
 \label{sec:IdrisSyntax}
 
-The syntax of Idris is heavily inspired by the syntax of Haskell with some modifications to better accommodate the dependent types-based programming paradigm and EDSLs.
+The syntax of Idris is heavily inspired by the syntax of Haskell; with some modifications to better accommodate the dependent types-based programming paradigm and EDSLs.
 
-In this section I will describe by example the interesting differences and highlight some of the features that makes creating a parser non-trivial.
+In this section I will use examples to highlight some of the features that makes creating a parser non-trivial.
 
 Figure~\ref{fig:simpleidrisprog} showcases a simple inductive data declaration for natural numbers, and a pattern-matching definition for a function `add' which computes the sum of two naturals.
 The only noticeable difference in syntax from an ordinary Haskell program is that `:' is used for type declarations instead of `::'.
@@ -92,15 +92,13 @@ The only noticeable difference in syntax from an ordinary Haskell program is tha
 \label{fig:simpleidrisprog}
 \end{figure}
 
-Similar to Haskell, Idris also allows one to define custom operators with user-defined fixity and precedence; but because of the lack of distiction between types and terms in Idris these
-operators can now appear anywhere in the program, even at type level. This can be seen in Figure~\ref{fig:opsandlambdas} where the data type for existential types is using the operator `***' as name.
+Similarly to Haskell, Idris allows one to define custom operators with user-defined fixity and precedence.
+Because of the lack of distiction between types and terms in Idris; these operators can now appear anywhere in the program, even at type level.
+This can be seen in Figure~\ref{fig:opsandlambdas} where the data type for existential types is using the operator `***' as a name.
 
-In Figure~\ref{fig:opsandlambdas} a type for length-indexed list, `vectors', is also defined. One can notice that this definition, similarly to the declaration for existential types, uses an extended style for data declarations
-that is more suitable for specifying dependencies in types. Some of the arguments are put between curly braces which specify that the given argument is implicit, although this is only allowed syntactically at top-level declarations.
+Another thing the reader might notice is that both the `***' operator and a lambda declaration were allowed in the type signature for `take\_while'.
 
-Finally in the figure, a function `take\_while' is defined.
-A thing one can notice that both the `***' operator and a lambda declaration were allowed at the type level.
-Another thing one should notice is the indentation-sensitive where the `with' and `where'-clauses must conform to a specific indentation to be syntactically valid.
+Lastly, the reader should notice that much of the syntax presented is indentation sensitive; for example the data constructors and the `where'-block.
 
 \begin{figure}[H]
 \begin{CenteredBox}
@@ -110,13 +108,13 @@ Another thing one should notice is the indentation-sensitive where the `with' an
 \label{fig:opsandlambdas}
 \end{figure}
 
-For convenience and improved readability of EDSLs, Idris allows further expansion of the syntax of the language. In Figure~\ref{fig:syntaxextensions} there has been defined two syntactic extensions,
+For improved readability of EDSLs, Idris allows further expansion of the syntax. In Figure~\ref{fig:syntaxextensions} there has been defined two syntactic extensions,
 one for the `take\_while' function and one for the existential data type. The syntax definitions (line 1-2) can define new keywords or syntactic markers (specified as either simple identifiers or quoted in a string),
 capture other expressions which are delimited in square brackets (e.g. `[vect]' in the example), or capture names which are delimited in curly braces (e.g. `\{x\}') that can be used for binding.
 This makes syntactic extensions quite powerful, and the only thing one cannot seemingly extend the language with is recursive grammar definitions.
 
-At lines 10-11 in Figure~\ref{fig:syntaxextensions} there exist an expression which uses these syntactic extensions as any other built-in syntax.
-Rather than being baked into Idris, many things like `if'-expressions are in practice defined using syntax extensions in the library,
+At lines 10-11 in Figure~\ref{fig:syntaxextensions} there is a clause which uses these syntactic extensions as any other built-in syntax.
+Rather than being baked into Idris, many things like `if'-expressions are in practice defined using syntax extensions in the library.
 
 \begin{figure}[H]
 \begin{CenteredBox}
@@ -129,18 +127,17 @@ Rather than being baked into Idris, many things like `if'-expressions are in pra
 
 \section{Trifecta}
 \label{sec:Trifecta}
-Trifecta\cite{kmett2013trifecta} is a monadic parser combinator library created by Edward Kmett with focus on providing good tools for error reporting and incremental parsing.
+Trifecta\cite{kmett2013trifecta} is a monadic parser combinator library created by Edward Kmett, with focus on providing good tools for error reporting and incremental parsing.
 
-In this section I will explain what parser combinators are, and how Trifecta as a library is designed such that the combinators provide some desirable features.
+In this section I will explain what parser combinators are, and how Trifecta as a library is designed such that the combinators provide the aforementioned features.
 
 \subsection{Parser Combinators}
 \label{sub:ParserCombinators}
-Traditionally there are two ways of creating a parser: either by hand-writing the parser, or by giving the grammar as input to a parser generator such as yacc\cite{johnson1975yacc} and generating one.
+Traditionally there are two ways of creating a parser: either by hand-writing one, or by giving the grammar as input to a parser generator such as yacc\cite{johnson1975yacc} and generating one.
 
-Parser combinator libraries\cite[Chapter~16]{osullivan2008realworldhaskell}\cite{hutton1996monadic} provide a way to help creating hand-written parsers by providing, often in the form of a EDSL, a set of generic higher-order functions called parser combinators.
+Parser combinator libraries\cite[Chapter~16]{osullivan2008realworldhaskell}\cite{hutton1996monadic} provides aid to creating hand-written parsers by providing, often in the form of an EDSL, a set of generic higher-order functions called parser combinators.
 
-Parser combinators produce new parsers by taking other parsers as input, and then can supply features as alternation, sequencing, choice, repetition and cursor movement.
-The constituting parsers can be either parser created by other parser combinators, or basic parsers which accepts a character from a limited range.
+Parser combinators produce new parsers by taking other parsers as input, and provides features as alternation, sequencing, choice, repetition and cursor movement.
 
 \subsubsection{Combinators by example}
 \label{ssub:Combinators by example}
@@ -153,15 +150,13 @@ The constituting parsers can be either parser created by other parser combinator
 \label{fig:loginparse}
 \end{figure}
 
-Figure~\ref{fig:loginparse} shows a simple example of a parser for parsing login information given in the following format ``id--password'', where id is either a phone number or a self-chosen user-name
+Figure~\ref{fig:loginparse} shows a simple example of a parser for parsing login information given in the following format ``id--password''. In this format id is either a phone number or a self-chosen user-name
 and password is a string of alphanumerical characters.
 
-The choice for id is created by using the `<|>' combinator, which tries the first alternative and if it fails without consuming any input will try the second alternative.
-Since there is overlap between the definition of phone number and username, phone number must be wrapped in a try-combinator which ensures that input can be restored by backtracking such that no input is consumed and the
-other alternative can be tried.
-
-Because the parser is monadic, sequence multiple parsers is conveniently available using ordinary monadic bind (or do-notation as done in the example), and thus it was easy to provide a way of parsing the following separator and password after
-parsing the id.
+The choice for id is created by using the `<|>' combinator, which tries parsing the first alternative and if it fails, without consuming any input, it will try parsing the second alternative.
+Since there is overlap between the definition of phone number and user-name parser, the phone number parser must be wrapped in a try-combinator which ensures that input can be restored by backtracking such that no input is consumed and
+other alternatives can be tried.
+Because the parser is monadic, sequencing multiple parsers is conveniently available using do-notation.
 
 In the example there are three repetition parser combinators used: `count' which specifies an exact number of repetitions, `many' which specifies zero or more repetitions and `some' which specifies one or more repetitions;
 although many more are usually available in such libraries.
@@ -173,37 +168,37 @@ the result of the right operand.
 \label{sub:FeaturesofTrifecta}
 While there are many parser combinator libraries for Haskell, Trifecta provides the following desirable features:
 \begin{description}
-  \item[Incremental parsing] When working with external tools, the input might change quite often.
+  \item[Incremental parsing] When working with external tools the input might change quite often.
                              It is therefore desirable if only the relevant part of the input is parsed again, and Trifecta achieves this by using monoidal parsing\cite{kmett2009iteratorsparsecandmonoids}.
-                             This feature can allow things like semantic highlighting and code completion to be more easily implemented.
-  \item[Error reporting] Trifecta has a focus on nice diagnostics and priniting. If a parser fails, it doesn't just show what it expected but also nicely formats and points to the place of error. Additionally
-                         Trifecta provides ways to highlight semantic errors in the code using the same type of spanning it uses for syntactic errors.
+                             This feature provide baseline support for semantic highlighting, code completion and other types of parser-dependent tooling.
+  \item[Error reporting] Trifecta has a focus on nice diagnostics and pretty printing. If a parser fails, it doesn't just show what it expected but also nicely formats and points to the place of error. 
+                         Moreover, Trifecta provides utilities to highlight semantic errors in the code using the same type of pretty printing it uses for syntactic errors.
 \end{description}
 
 \section{Solution}
 \label{sec:Solution}
-In many ways transitioning the parser from Parsec to Trifecta and rewriting the grammar is non-trivial.
-In this section I will outline my effort on improving the parser and highlighting the interesting parts, namely formalization of the grammar and improvement on the error reporting and locating.
-This entails that in the interest of readability, some of the more mechanical and structural parts will not be explained in detail although a lot of effort was put into that part.
+In many ways rewriting the parser from Parsec to Trifecta is non-trivial.
+Nonetheless, I will outline in this section my effort on improving the parser by highlighting the interesting parts of my work, namely formalization of the grammar and improvement on the error reporting and locating.
 
 \subsection{Formalising the Grammar}
 \label{sub:FormalisingtheGrammar}
-Part of the challenge of writing a new parser for Idris is that at the time there were no formalization of grammar in Idris.
+Part of the challenge of writing a new parser for Idris is that, at the time, there were no formalization of grammar in Idris.
 This entailed two issues:
 \begin{enumerate}
-  \item There was no official reference regarding syntax for users of Idris. This meant that it was hard to find what the correct syntax is if there was an error and the only way to correct this is either:
+  \item There was no official reference regarding the Idris syntax. This meant that it was hard to find the syntactically correct way to write a program and in case of error one could either:
     \begin{itemize}
-      \item by trying to isolate the bug in a structured fashion and try to guess how it should be corrected
-      \item or by trying to use a lot of time analysing the parser code and see what the legal syntax should have been
+      \item try to isolate the bug in a structured fashion and try to guess how it should be corrected
+      \item or try to use a lot of time analysing the parser code and see what the legal syntax should have been
     \end{itemize}
-\item There were some grammatical inconsistencies, such that some programs were falsely accepted (e.g.\ programs that were missing a `\}') and some didn't behave as expected thereby being falsely rejected (e.g.\ proof-blocks didn't supported verbose but not indentation-style syntax, unlike do-blocks which supported both).
+\item There were some grammatical inconsistencies, such that some programs were falsely accepted (e.g.\ programs that were missing a `\}') and some didn't behave as expected (e.g.\ proof-blocks did support verbose but not indentation-style syntax, unlike do-blocks which supported both).
 \end{enumerate}
 
-The formalization to an official BNF grammar was further complicated by the fact that Idris supports an indentation based syntax, and furthermore it supports user-defined syntax extensions. As such the resulting grammar is incomplete due to fact that
-it is impossible to formalize all possible syntax extensions and is not totally sound because it does not reflect all of the lexical properties of indentation.
-
-The latter could be improved by specifying the grammar in an extended BNF syntax like the one used
+The formalization to an official BNF grammar was further complicated by the fact that Idris supports an indentation-based syntax and user defined extensions.
+As such the resulting grammar is incomplete since it is impossible to formalize all possible syntax extensions,
+and is not totally sound because it does not reflect all of the lexical properties of indentation. The latter could be improved by specifying the grammar in an extended BNF syntax like the one used
 by Adams\cite{adams2013principled}, but at the time of analyses there were too many inconsistencies regarding indentation in order to completely reflect the actual syntax and thus this was omitted.
+
+In any case the grammar should provide a useful, covering and understandable overview of the syntax.
 
 The actual translation process was done by carefully analysing the existing parser structure, noting any seeming inconsistencies and correcting them in the grammar.
 The final result is available in Appendix~\ref{sec:IdrisFormalizedGrammar}.
@@ -211,12 +206,11 @@ The final result is available in Appendix~\ref{sec:IdrisFormalizedGrammar}.
 \subsection{Documenting for Failures}
 \label{sub:DocumentingforFailures}
 %Column tracking, parser documentation
-Another issue there was with the existing parser was that grammar rules were improperly documented so instead of error messages showing what legal types of grammar it expected, it instead showed a list of tokens that can appear somewhat random
+Another issue there was with the existing parser was that grammar rules were improperly documented; so instead of error messages showing what legal types of grammar it expected, it instead showed a list of tokens that can appear somewhat random
 for the intended user. For example if a user had mistyped something in the start of an expression, it would show all operators, keywords and marker symbols that were possible at that point instead of just showing that
 an expression was expected.
 
 Therefore some of the work done on the parser was to provide a human-readable string explanation for each grammar rule using the `<?>' combinator. Figure~\ref{fig:docparrule} shows an example of such annotation.
-Additionally comments and white space was documented in such way that the parser didn't report them as expected, unlike in the previous version.
 
 \begin{figure}[H]
 \begin{CenteredBox}
@@ -229,15 +223,15 @@ Additionally comments and white space was documented in such way that the parser
 
 \subsection{The Parser with Fear of Commitment}
 \label{sub:TheParserwithFearofCommitment}
-One of the most challenging parts of the grammar re-factoring was that many of the rules were written in such way that they didn't commit to any of the branches in a list of alternatives.
+One of the more challenging parts of the grammar re-factoring process was that many of the rules were written in such way that they didn't commit to any of the branches in a list of alternatives.
 
 This meant that each time there was an error in one of the alternatives, the parser had to backtrack all the way back to the starting point.
 
 In addition to being exponentially slow and memory requiring, in the case that
-none of the branches succeeding it will show a location at the start of the grammar rule instead of the location where the possible error happens. In the case of top-level declarations, this can be multiple lines and columns away from the actual location,
-and finding the correct location is extremely hard for the programmer.
+none of the branches succeeded it will show a location at where it was before parsing the specific grammar rule instead of the location where the possible error happens.
+In the case of top-level declarations, this can be multiple lines and columns away from the actual location, and finding the correct location could be extremely hard for the programmer.
 
-Figure~\ref{fig:noncomittingparser} shows one of the rules, were one can observe that all alternatives are wrapped in the try-combinator meaning it will never commit to any alternative in case of an error.
+Figure~\ref{fig:noncomittingparser} shows one of the rules, were the reader may observe that all alternatives are wrapped in the try-combinator meaning it will never commit to any alternative in case of an error.
 
 \begin{figure}[H]
 \begin{CenteredBox}
@@ -250,7 +244,7 @@ Figure~\ref{fig:noncomittingparser} shows one of the rules, were one can observe
 To fix this usually two things are required:
 \begin{enumerate}
   \item Reordering of rules such that less ambiguous rules comes before more ambiguous rules
-  \item Minimizing the span of the try-combinator such that only the ambiguous part of covered, i.e. until a keyword or marking character
+  \item Minimizing the span of the try-combinator such that only the ambiguous part of covered, i.e. usually until a keyword or marking character
 \end{enumerate}
 Figure~\ref{fig:comittingparser} shows the committing version of the rule shown in Figure~\ref{fig:noncomittingparser}, where some of the alternatives has been reordered to avoid backtracking.
 It should be noted that this was a simple example of such re-factoring, and more complex rules such as the one for data declaration required significantly more effort.
@@ -267,14 +261,12 @@ It should be noted that this was a simple example of such re-factoring, and more
 \label{sub:ImprovingSourceTracking}
 In the old parser there was tracking of source code in the abstract syntax tree, but some of the tracking was highly inaccurate and was missing column information.
 
-In some elements like atomic identifiers or references, the location was first retrieved after the token was parsed; This meant that if there was a lot of white space the reference would have been at the end
-of the white space, instead of at the start of the token.
-
-For these tokens, a correct was made so that the location was retrieved \textit{before} a token was parsed.
+In some elements like atomic identifiers or references, the location was first retrieved after the token was parsed; This meant that if there was a lot of white space after the reference, the location would have been at the end
+of the white space, instead of near the token.
+For these tokens, a correction was made such that the location was retrieved \textit{before} a token was parsed.
 This additionally had the benefit of allowing easier access to highlighting relevant identifiers by simply selecting all text from the stored location to white space.
 
-Furthermore, all the abstract syntax trees at various level were altered to provide column information such that multiple items on the same line were distinguishable.
-This also highlighted an old bug where the structural equality of the abstract syntax tree was dependent on the location, and thus two widely different variables could have been assumed to be the same if they were on the same line.
+Furthermore, all the abstract syntax trees at various stages in the pipeline were altered to provide column information such that multiple items on the same line were distinguishable.
 
 \section{Evaluation}
 \label{sec:Evaluation}
@@ -296,12 +288,12 @@ The following bugs in the syntax was corrected:
 The only challenging item in the current implementation of the parser is the parsing of nested parenthesized expressions, which currently is exponentially slow.
 This is due to ambiguity in grammar where operator slices e.g. `($\backslash\backslash$ x)' are hard to distinguish from lambdas `($\backslash$ y => y * x)' and thus all parenthesized expression require full lookahead.
 
-This way nested parenthesized expression can do exponential backtracking.
+To solve this issue, the grammar needs to be rewritten such that there is less ambiguity between the various kinds of parenthesised expressions.
 
 \subsection{Error Report Improvements}
 \label{sub:ErrorReportImprovements}
-As a showcase for error reporting improvements I will highlight a couple of examples where a simple error resulted some bad locations and suggestions by the old parser,
-but shows a clear placement and presentation of error in the new parser.
+As a showcase for error reporting improvements, I will highlight a couple of examples where a simple mistake resulted in some uninformative error report by the old parser
+but where the new parser shows a clear placement and presentation of error.
 
 \begin{figure}[H]
 \begin{minipage}{\linewidth}
@@ -322,8 +314,10 @@ but shows a clear placement and presentation of error in the new parser.
 \label{fig:improvementsinerrorrepoting}
 \end{figure}
 
-Figure~\ref{fig:improvementsinerrorrepoting} shows an Idris program where the user had accidentally used `::' for constructor type signatures similar to Haskell
-instead of `:' used in Idris. As can be observed in the figure, the old parser reports that the error is at line 3 (where type is declared, not the constructor) and
+Figure~\ref{fig:improvementsinerrorrepoting} shows an Idris program where the user had accidentally used `::' for data constructor type signatures similarly to Haskell type signatures,
+instead of `:' used in Idris type signature.
+
+As can be observed in the figure, the old parser reports that the error is at line 3 (where type is declared, not the constructor) and
 suggests that it expected one token from a long list of unrelated ones.
 
 The new parser substantially improves the error location by pointing directly at the place of error and showing a part of the code that was affected. Furthermore
@@ -349,19 +343,19 @@ it only suggests that the type signature should be fixed, which is the correct e
 \end{figure}
 
 Figure~\ref{fig:improvementsinerrorrepotingc} shows similarly that the old parser error report were basically unusable. The user had accidentally
-forgot to finish the expression of an infix operator and instead of complaining that it had missed the rest of the operation it instead complains at the start of the function
+forgot to finish the expression of an infix operator and instead of complaining that it had missed the rest of the operation; it instead complains at the start of the function
 clause saying that it didn't expect the argument given.
 
-As can be seen, the new parser correctly highlights that the parser didn't expect end-of-file but an expression and the user can immediately correct this bug instead
+Contrarily, the new parser correctly highlights that the parser didn't expect end-of-file but an expression and the user can immediately correct this bug instead
 of hunting down the error at the completely wrong place.
 
 \subsection{Community Reception}
 \label{sub:CommunityReception}
 The parser described in this paper has officially been included in the Idris language, and is now the solely used parser.
 
-The general reception has been positive by the community and in the word of the language designer, it has been described as following in the changelog: ``New parser implementation with more precise errors.''
+The reception has been generally positive by the community and in the word of the language designer, it has been described as following in the changelog: ``New parser implementation with more precise errors.''
 
-Initially there has been less than 10 bugs reported, many of which already existed in the previous parser, but were undiscovered to bad error messages.
+Initially there has been less than 10 bugs reported, many of which already existed in the previous parser, but were undiscovered due to bad error messages.
 However, the number of bugs reported regarded parsing has decreased substantially and the last reported bug was reported more than a month ago since writing this report.
 
 \textbf{NOTE:} Add results for HTML clickable code thing if there is time
@@ -373,9 +367,8 @@ While there has been lot of effort improving the parser, not all of the advantag
 In the future work, I would suggest the following improvements that could be made:
 
 \begin{description}
-  \item[Spanning the source code] Currently the source code is only tracked by a cursor in the abstract syntax tree, and while this allows good semantic error reporting and OK tooling support,
-        a better solution would entail tracking the full span of a structure in the AST. This would allow easier access to pretty printing the affected code, and
-        using the parser technology to better print and highlight the errors.
+  \item[Spanning the source code] Currently the source code is only tracked by a cursor in the abstract syntax tree,
+        a better solution would entail tracking the full span of a structure in the AST. This would allow easier access to pretty printing and error highlighting the affected code.
   \item[Utilising incremental parsing] Trifecta supports incremental parsing, and it could provide many useful features in regards to tooling. As part of future work
                                        it could be of great interest to utilize this feature to allow for things like semantic highlighting and code completion.
   \item[Refactoring semantics out of the parser] Currently the parser does a lot of semantic checking inside the parser structure, in order to ensure
@@ -383,7 +376,9 @@ In the future work, I would suggest the following improvements that could be mad
 
                                                  For example implicit parameters are not allowed in function arguments
                                                  and the parser currently disallows writing implicit argument syntax in the type signatures where function arguments
-                                                 are expected. This results in a parser error saying that it didn't expect the implicit syntax, and while this is correct
+                                                 are expected. 
+                                                 
+                                                 This results in a parser error saying that it didn't expect the implicit syntax, and while this is correct
                                                  it might be confusing for a new user. As such, many of these semantic checks should be moved out of the parser and
                                                  refactored in a separate syntax checking step which provide better error report for such situations.
 \end{description}
@@ -404,6 +399,7 @@ Finally, while there were improvements to be made, changing the parser technolog
 
 \bibliography{Report}
 
+\pagebreak
 \appendix
 \section{Idris Formalized Grammar}
 \label{sec:IdrisFormalizedGrammar}
