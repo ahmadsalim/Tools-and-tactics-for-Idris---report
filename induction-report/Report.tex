@@ -1,0 +1,285 @@
+\documentclass[a4paper]{article}%{llncs}
+\DeclareTextCommandDefault{\nobreakspace}{\leavevmode\nobreak\ }
+\usepackage{listings} % Nice code-boxes
+\usepackage{nameref}
+\usepackage{graphicx} % For \includegraphics
+\usepackage{float}    % For in-line images
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{url} %For urls
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption} % For advanced captioning
+\usepackage{subcaption}
+\usepackage{authblk}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{fontspec}
+\usepackage{fancybox}
+\usepackage{bussproofs}
+
+\newfontfamily\unicodemonofamily{Menlo}
+\graphicspath{{Images/}}
+\bibliographystyle{splncs}
+
+\makeatletter
+\newenvironment{CenteredBox}{\begin{Sbox}}{\end{Sbox}\centerline{\parbox{\wd\@Sbox}{\TheSbox}}}% And output it centered
+\makeatother
+
+% make a proper TOC despite llncs, %http://code.google.com/p/decidr/wiki/LatexLLNCSTableOfContents
+\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{5}
+\makeatletter
+% end TOC fix
+% Pseudocode fix
+\newcommand*\Let[2]{\State #1 $\gets$ #2}
+\algrenewcommand\alglinenumber[1]{
+  {\sf\footnotesize#1}}
+% end Pseudocode fix
+\newtheorem{exm}{Example} %Example theorem
+\newtheorem{dfnt}{Definition} %Definition theorem
+\begin{document}
+
+\title{Tactic for Inductive Proofs \\ \normalsize{A part of the Tools and Tactics for Idris project}}
+\author{Ahmad Salim Al-Sibahi (\texttt{asal@itu.dk}) \\IT University of Copenhagen\\Supervisors: \\David Raymond Christiansen (\texttt{drc@itu.dk})\\ Dr. Peter Sestoft (\texttt{sestoft@itu.dk})}
+\date{\today}
+
+
+\maketitle
+\lstset{basicstyle=\scriptsize\unicodemonofamily, captionpos=b, extendedchars=false, numbers=left, stepnumber=3, firstnumber=1, language=Haskell}
+
+\include{Abstract}
+
+%\tableofcontents
+%\clearpage
+\section{Introduction}
+\label{sec:Introduction}
+Today, functional languages are becoming increasingly popular for use in the enterprise world\,\cite{ford2013functionalthinking}.
+Functional programming allows the writing of elegant and concise programs using concepts such as higher-order abstractions, inductive data-types and pattern matching.
+Additionally, features such as purity and parametric polymorphism enable the type system to provide free theorems for functions,
+and allow the programmer to reason more logically about a given program\,\cite{wadler1989theorems}.
+
+Yet, there are still limitations of what these type systems provide in terms of correctness. For example, the programmer cannot ensure that two lists have equal lengths before doing a zip operation.
+
+Dependently-typed programming\,\cite{univalent2013hott} allow the programmer try to mitigate these limitations by allowing types to be indexed by values, and provide no distinction between types and terms.
+Furthermore, because of the way many dependently-typed languages are designed, the programmer can do proving of theorems within the realm of intuitionistic logic in accordance with the Curry-Howard isomorphism\cite{mckinna2013deptypes}.
+
+Idris is a general-purpose programming language designed by Edwin Brady with support for dependent types\,\cite{brady2013idris}. In addition to a dependent type system, Idris features so-called tactics which allow an interactive style of doing theorem proving similar to Coq\,\cite{coqteam2013coq}.
+
+The report will be structured as follows. In Section~\ref{sec:ProgrammingwithDependentTypes} I will investigate and explain what dependent-types are. Section~\ref{sec:Tactics-basedTheoremProving} will discuss what tactics are, and how use them. My work on the induction tactic will be outlined in Section~\ref{sec:Solution} and evaluated in Section~\ref{sec:Evaluation}. Finally, I will conclude in Section~\ref{sec:Conclusion}.
+
+\section{Programming with Dependent Types}
+\label{sec:ProgrammingwithDependentTypes}
+
+\subsection{Dependent Types in Idris}
+\label{sub:DependentTypesinIdris}
+As mentioned in Section~\ref{sec:Introduction}, dependent types allow types to not only dependent on other types but also on ordinary values \textit{e.g.}\ natural numbers. The power is apparent when we can define
+data structures and functions which ensure at compile-time that only specific input can be provided at compile time and can provide programmers with interesting theorems about the given programs.
+In that way, the types represent proofs that particular properties hold for the written program.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+\lstinputlisting[firstline=1, lastline=12]{examples/dependenttypes.idr}
+\end{CenteredBox}
+\caption{AVL Tree}
+\label{fig:avltree}
+\end{figure}
+
+Figure~\ref{fig:avltree} shows a definition of an AVL tree in Idris. AVL trees\,\cite{goodrichtamassia2002algorithmdesign} are restructured on insertion and removal when the difference between the two child trees is larger than one. Thus, it is ensured that many operations are in logarithmic time by limiting the depth of the final tree.
+Using the power of dependent types the definition of AVL trees in the figure ensures that only balanced trees can be constructed. This is mainly done by the following two properties:
+
+\begin{itemize}
+  \item The AVL tree is indexed by its depth, which is defined as `\texttt{0}' for leafs and `\texttt{1+max(n$_l$, n$_r$)}' for intermediate nodes where
+    `\texttt{n$_l$}' and `\texttt{n$_r$}' are the depth of the left and right sub-trees.
+  \item When trying to construct a new tree-node with two sub-trees it requires a \textit{proof object} which ensures that the difference in depth is at most 1 (see `\texttt{Balanced$_1$}').
+\end{itemize}
+
+The data type `\texttt{Balanced$_1$}' ensures there is at most a difference of 1 between its two arguments by providing no constructors that can create a
+value of `\texttt{Balanced$_1$}' with a larger difference. So even if a type like `\texttt{Balanced$_1$ 3 5}' is referred to, a value of this type cannot be constructed
+and the program relying on this value wouldn't compile.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=14, otherkeywords={?no_value_can_be_here}]{examples/dependenttypes.idr}
+\end{CenteredBox}
+\caption{AVL Tree Instances}
+\label{fig:avltreeinstances}
+\end{figure}
+
+Figure~\ref{fig:avltreeinstances} shows a correct and an incorrect (non-balanced) instance of the AVL tree.
+The `\texttt{testAVLCorrect}' value is accepted by the compiler since the depth of the left sub-tree is only 1 larger than the depth of the right sub-tree.
+In contrast `\texttt{testAVLIncorrect}' is rejected by the compiler, because the difference is 2 and it is not possible to create a value of the `\texttt{Balanced$_1$}' proof object.
+
+\subsection{Propositional Equality}
+\label{sub:PropositionalEquality}
+Since Idris permits restricting how objects are constructed bye predicating types on values, it opens up the possibility of defining a type for reasoning about propositional equality (see Figure~\ref{fig:propositionalequality})\,\cite{mcbride1999thesis}.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=1, lastline=2]{examples/propositionequality.idr}
+\end{CenteredBox}
+\caption{Propositional Equality}
+\label{fig:propositionalequality}
+\end{figure}
+
+While the propositional equality type permits the programmer to refer to say that objects of different types might be equal, the only way to actually construct a value of the type is using `\texttt{refl}' which
+only accepts a value of a single type. Therefore, propositional equality allows the programmer to state interesting theorems about the program which then must be proved separately later.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=4]{examples/propositionequality.idr}
+\end{CenteredBox}
+\caption{Proof of n + 0 = n}
+\label{fig:npluso}
+\end{figure}
+
+Figure~\ref{fig:npluso} shows a proof of that adding a zero on the left-hand side of a natural number yields the same natural number. While this theory might seem a bit simple for a human reader, if
+the addition was defined by recursion on the first argument the type checker would reject the theorem if no further proof was provided.
+
+The proof itself is simple in essence, as it is done by recursion. In the base case (0), it is obvious for the type checker than it holds because everything is a constant and can be reduced to the same form (this it transforms `\texttt{0 + 0 = 0}' to `\texttt{0 = 0}').
+The inductive step is simply apply the congruence relation on the inductive hypothesis to transform `n+0=n' to `S n + 0 = S n', which is the expected resulting type.
+The congruence relation utilises the purity and injectivity of functions and specify that given two values which are proven equal in a domain, they are also equal in the input functions co-domain.
+Propositional equality is a key concept in Dependently-typed languages, since it allows the programmer to proof theorems about types that wouldn't simply have been accepted by the type checker.
+
+\subsection{Formation, Introduction, Elimination}
+\label{sub:FormationIntroductionElimination}
+Type declaration, constructors and pattern matching are in many ways programming-oriented terms. A more logic-oriented way of thinking of types and constructors is to talk about formation, introduction and elimination
+rules.
+
+
+\begin{figure}[H]
+  \begin{prooftree}
+    \AxiomC{}
+    \UnaryInfC{$Nat : \ast$}
+  \end{prooftree}
+\caption{Formation rule for natural numbers}
+\label{fig:formationnat}
+\end{figure}
+
+Formation rules are used to define what valid ways of constructing a type there are, i.e.\ what type parameters and indices are required in order to create such type, analogous to the signature
+of a data declaration in Idris. Figure~\ref{fig:formationnat} shows the formation rule for natural numbers, where it is declared that it is an ordinary type without any parameters (`\texttt{$\ast$}' is the type of types).
+
+\begin{figure}[H]
+  \begin{subfigure}[b]{0.5\textwidth}
+    \begin{prooftree}
+      \AxiomC{}
+      \UnaryInfC{$\mathbf{Z} : Nat$}
+    \end{prooftree}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.5\textwidth}
+    \begin{prooftree}
+      \AxiomC{$n : Nat$}
+      \UnaryInfC{$\mathbf{S}\,n : Nat$}
+    \end{prooftree}
+  \end{subfigure}
+\caption{Introduction rules for natural numbers}
+\label{fig:intronat}
+\end{figure}
+
+Introduction rules are analogous to constructor declarations, in that they define how it is possible to create a type in the current context. Figure~\ref{fig:intronat} shows an inductive definition
+for integers, where 0 is defined to be a natural number and then given any number the successor of that number is a natural number.
+
+\begin{figure}[H]
+  \begin{prooftree}
+    \AxiomC{$P : Nat \rightarrow \ast$}
+    \AxiomC{$P_\mathbf{Z} : P \, \mathbf{Z}$}
+    \AxiomC{$P_{\mathbf{S}} : \left(n : Nat\right) \rightarrow P \, n \rightarrow P \, \left(\mathbf{S}\,n\right)$}
+    \AxiomC{$m : Nat$}
+    \QuaternaryInfC{$ind_{Nat} \left(P, P_\mathbf{Z}, P_{\mathbf{S}}, m\right) : P \, m$}
+  \end{prooftree}
+\caption{Elimination rule for natural numbers}
+\label{fig:elimnat}
+\end{figure}
+
+The elimination rule is probably the most important rule in this set, since they define how to actually use the types to prove theorems. While eliminators exist in the programming world, the most common way of doing computation using a
+data type is by pattern matching. However, it will become apparent that if it is necessary to prove something about all possible values of a particular type, eliminators provide a convenient way to do induction proofs.
+
+Generally, the elimination rule of a type works by requiring the motive to proof as an input, in addition to ``messages'' which represent case analyses on each possible constructor and a ``scrutinee'' argument of the type which is used
+to determine the result. The messages are structured such that the arguments for the particular constructor are given as arguments and must return a proof of the property on that constructor. If there are any inductive arguments in a constructor,
+the inductive hypothesis (recursive proof) must additionally be given as argument to the relevant message.
+Figure~\ref{fig:elimnat} shows the elimination rule for natural numbers where `\texttt{P}' is the motive to be proven, `\texttt{P$_Z$}' and `\texttt{P$_S$}' are the messages for the zero and successor case and `\texttt{m}' is the scrutinee.
+
+There is however variance on how the elimination look for type with indices and a couple of special types like `\texttt{$\bot$}' and propositional equality. The rules for these types are the following:
+\begin{description}
+  \item[Types with indices] The indices must be a part of the signature of the motive to proof, since they can vary depending on the constructor used.
+  \item[Types without constructors] For `\texttt{$\bot$}' and similar types (such as `\texttt{Fin Z}' ), the elimination rule is simplified since it is not possible to construct a value of such type. Therefore, if these types are in a premise of a proof one could proof anything.
+  \item[Type for propositional equality] While the type presented for propositional equality can equal values of different types at type level, it was only possible to construct an object if both sides of the equality had the same type. Similarly, the eliminator
+    for propositional equality should only eliminate over values of the same type; otherwise the rule wouldn't allow substitution of two values of the same type\,\cite{mcbride1999thesis}.
+\end{description}
+
+\subsection{Elaboration and Unification}
+\label{sub:ElaborationandUnification}
+When talking about the compiling and typing proceses in Idris, I am usually referring to the ``elaboration'' and ``unification'' processes in Idris (although there are various other actions in the pipeline)\,\cite{brady2013idris}.
+
+Elaboration is the process of translating the high-level code of Idris to a core type theory called TT\@. The main idea of elaboration is to simplify constructs like type-classes, implicit arguments and various pattern matching clauses (like where-blocks) into
+dependent records, explicit arguments and case-trees respectively.
+
+The elaboration process is done using a combination of tactics, and tries to achieve it goal by three means: type checking, normalisation and unification.
+\begin{enumerate}
+  \item Type checking ensures that values belong correctly to the types specified, \textit{e.g.}\ that `\texttt{S Z}' is of type `\texttt{Nat}'.
+  \item Normalisation tries do reduce a term to a simplified form, and is especially useful in Idris because terms can be index types. This is done to ensure that \textit{e.g.}\ `\texttt{Z+n}' is reduced to `\texttt{n}', so that the programmer does not need
+    to explicitly proof things that are equal by definition (assuming that `+' reduces on the left argument as is done in Idris).
+  \item Unification is the process of resolving what values are valid in unfilled parts of a program \textit{i.e.}\ implicit arguments and arguments denoted with `\texttt{\_}', in order to get a complete term. For example, given the value `\texttt{[1,2]}'
+    of a type `\texttt{Vect n a}', the type parameter `\texttt{a}' must be unified to `\texttt{Integer}' (as that is the type of elements) and the length index `\texttt{n}' must be unified to 2 (size of the list).
+\end{enumerate}
+
+\section{Tactics-based Theorem Proving}
+\label{sec:Tactics-basedTheoremProving}
+In order to aid the programmer when doing proving properties about a particular programmer that is written, Idris support tactic-scripts. A tactic is a structured proven instruction that changes the context (either the goals or premises) of a proof,
+and that is available in such way that a combination of tactics represent the particular program necessary in order to achieve the desired goal.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+\lstinputlisting[firstline=1, lastline=8]{examples/tacticproofs.idr}
+\end{CenteredBox}
+\caption{Theorems to Proof}
+\label{fig:tactictheorems}
+\end{figure}
+
+Figure~\ref{fig:tactictheorems} states three theorems about equality of natural numbers that needs to be proven: reflexivity, symmetry and transitivity. The theorems are represented at the type level using
+propositional equality, and at the value level each term is assigned a meta-variable. Meta-variables specify that the proofs will be done separately, possibly using the tactic support of Idris.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+\lstinputlisting[firstline=12]{examples/tacticproofs.idr}
+\end{CenteredBox}
+\caption{Tactic-based proofs for Theorems}
+\label{fig:tacticproofs}
+\end{figure}
+
+The proofs for the theorems stated is found in Figure~\ref{fig:tacticproofs}. The proof for reflexivity is simple, the `\texttt{intro}' tactic is used such that the parameter `\texttt{n}' is added to the premises and then the tactic
+`\texttt{trivial}' is used. The `\texttt{trivial}' tries to solve the goal by either using definitional equality or by finding a matching expression among the premises. As such, `\texttt{trivial}' can be seen
+as the simplest tactic that can actually finish a proof, since it refines using things already known.
+
+The proof for symmetry is marginally more complicated as it uses the `\texttt{rewrite}' tactic. The `\texttt{rewrite}' accepts an equation, and replaces all instances of the equation right hand side with the equation left hand side in the goal.
+In the case for symmetry it had the replaced the `\texttt{m = n}' goal with `\texttt{n = n}'. After rewriting, the goal is true by definitional equality and
+`\texttt{trivial}' can simply be used.
+
+The final example of proving transitivity, uses yet another two constructs `\texttt{sym}' and `\texttt{exact}'. `\texttt{sym}' is a construct that exploits symmetry and returns the symmetric version of an equation, and is useful in combination
+with `\texttt{rewrite}' if the programmer wants to replace with the right hand side of an equation instead. In the example the `\texttt{rewrite (sym H1)}' part replaces `\texttt{n = o}' with `\texttt{m = o}'. Since `\texttt{m = o}' exist in
+the context the `\texttt{exact}' tactic finishes the proof by specifying that the goal is already proven as `\texttt{H1}'. While it is possible to use `\texttt{trivial}' instead of `\texttt{exact}' in this case, `\texttt{exact}' provides
+more information on how the goal was reached.
+
+The tactics shown was just a small subset of the tactics available in Idris, and many more exist such as `\texttt{compute}' which normalises current term in the context, and `\texttt{try}' which iterates through a tactic sequence until one succeeds.
+
+\section{Solution}
+\label{sec:Solution}
+The primary objective of my solution is to create an induction tactic for Idris. This is done in two steps: generating the eliminator for a given data-type, and using that eliminator in a proof setting by abstracting the current goal
+as a motive to permit inductive proves.
+
+\subsection{Generating Eliminators}
+\label{sub:GeneratingEliminators}
+
+\subsection{The Induction Tactic}
+\label{sub:TheInductionTactic}
+
+
+\section{Evaluation}
+\label{sec:Evaluation}
+\section{Conclusion}
+\label{sec:Conclusion}
+\bibliography{Report}
+
+\pagebreak
+\appendix
+
+\end{document}
