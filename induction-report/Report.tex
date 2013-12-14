@@ -12,6 +12,7 @@
 \usepackage{subcaption}
 \usepackage{authblk}
 \usepackage{algorithm}
+\usepackage{algorithmicx} 
 \usepackage[noend]{algpseudocode}
 \usepackage{fontspec}
 \usepackage{fancybox}
@@ -182,7 +183,7 @@ for integers, where 0 is defined to be a natural number and then given any numbe
   \begin{prooftree}
     \AxiomC{$P : Nat \rightarrow \ast$}
     \AxiomC{$P_\mathbf{Z} : P \, \mathbf{Z}$}
-    \AxiomC{$P_{\mathbf{S}} : \left(n : Nat\right) \rightarrow P \, n \rightarrow P \, \left(\mathbf{S}\,n\right)$}
+    \AxiomC{$P_{\mathbf{S}} : n : Nat\,, P \, n \vdash P \, \left(\mathbf{S}\,n\right)$}
     \AxiomC{$m : Nat$}
     \QuaternaryInfC{$ind_{Nat} \left(P, P_\mathbf{Z}, P_{\mathbf{S}}, m\right) : P \, m$}
   \end{prooftree}
@@ -200,11 +201,29 @@ Figure~\ref{fig:elimnat} shows the elimination rule for natural numbers where `\
 
 There is however variance on how the elimination look for type with indices and a couple of special types like `\texttt{$\bot$}' and propositional equality. The rules for these types are the following:
 \begin{description}
-  \item[Types with indices] The indices must be a part of the signature of the motive to proof, since they can vary depending on the constructor used.
-  \item[Types without constructors] For `\texttt{$\bot$}' and similar types (such as `\texttt{Fin Z}' ), the elimination rule is simplified since it is not possible to construct a value of such type. Therefore, if these types are in a premise of a proof one could proof anything.
+  \item[Types with indices] The indices must be a part of the signature of the motive to proof, since they can vary depending on the constructor used (see Figure~\ref{fig:elimvect} for elimination rule of length-indexed lists).
+  \item[Types without constructors] For `\texttt{$\bot$}' and similar types, the elimination rule is simplified since it is not possible to construct a value of such type. Therefore, if these types are in a premise of a proof one could proof anything (principle of explosion).
   \item[Type for propositional equality] While the type presented for propositional equality can equal values of different types at type level, it was only possible to construct an object if both sides of the equality had the same type. Similarly, the eliminator
     for propositional equality should only eliminate over values of the same type; otherwise the rule wouldn't allow substitution of two values of the same type\,\cite{mcbride1999thesis}.
 \end{description}
+
+\begin{figure}[H]
+  \begin{center}
+  \begin{prooftree}
+    \AxiomC{$\alpha : \ast$}
+    \AxiomC{$P : \left(n:Nat\right) \rightarrow Vect \, n \, \alpha \rightarrow \ast$}
+    \noLine
+    \UnaryInfC{$P_\mathbf{Nil} : P \, 0 \, \mathbf{Nil}$}
+    \AxiomC{$m : Nat$}
+    \AxiomC{$ys : Vect\, m\, \alpha$}
+    \noLine
+    \BinaryInfC{$P_{\mathbf{::}} : n : Nat, x : \alpha, xs : Vect \, n \, \alpha, P \, n \, xs \vdash P \, \left(\mathbf{S}\,n\right) \, \left(x \mathbf{::} xs\right)$}
+    \TrinaryInfC{$ind_{Vect} \left(P, P_\mathbf{Nil}, P_{\mathbf{::}}, m, ys\right) : P \, m \, ys$}
+  \end{prooftree}
+\end{center}
+\caption{Elimination rule for length-indexed lists}
+\label{fig:elimvect}
+\end{figure}
 
 \subsection{Elaboration and Unification}
 \label{sub:ElaborationandUnification}
@@ -269,10 +288,109 @@ as a motive to permit inductive proves.
 \subsection{Generating Eliminators}
 \label{sub:GeneratingEliminators}
 
+\begin{figure}[H]
+  \begin{center}
+    \begin{algorithmic}[1]
+    \Procedure{ElaborateEliminator}{$name, type, constructors$}
+    \State $\left(parameters, indices\right) \gets \Call{TypeArguments}{type}$
+    \State $motiveType \gets \Call{ConstructMotiveType}{name, parameters, indicies}$
+    \State $messageTypes \gets \{\}$
+    \ForAll{$constructor \in constructors$}
+    \State $messageTypes \mathrel{\leftarrow\mkern-12mu\leftarrow} \Call{ConstructMessageType}{constructor, parameters}$
+    \EndFor
+    \State $scrutineeIndicies \gets \Call{ConstructScrutineeIndicies}{indicies}$
+    \State $scrutineeType \gets \Call{ConstructScrutineeType}{parameters, scrutineeIndicies}$
+    \State $eliminatorType$ $\gets$ \Call{$ConstructEliminatorType$}{$parameters$, $motiveType$, $messageTypes$, $scrutineeIndicies$, $scrutineeType$}
+    \State $eliminatorName \gets \Call{EliminatorName}{type}$
+    \State $\Call{ElaborateTypeDeclaration}{eliminatorName, eliminatorType}$
+    \If{$messageTypes \ne \{\}$}
+      \State $clauses \gets \Call{ConstructEliminatorClauses}{constructors, eliminatorType}$
+      \State $\Call{ElaborateClauses}{eliminatorName, clauses}$
+    \EndIf
+    \EndProcedure
+  \end{algorithmic}
+  \end{center}
+\caption{Algorithm for Elaboration of Eliminators}
+\label{fig:elabelim}
+\end{figure}
+
+A simplified pseudo-code version of the algorithm for generating the eliminators for a type is shown in Figure~\ref{fig:elabelim} (the original code is written in imperative-style Haskell with do-notation).
+The algorithm takes three arguments, namely the name, type and constructors of the type which needs the generation of eliminators.
+
+The first step of the algorithm is to differentiate parameters from indices in the type arguments (because Idris unlike other dependently-typed languages doesn't have
+a built-in distinction). The distinction between parameters and indices is important, since parameters must be generalised across the eliminator type, while indicies
+can vary in the motive and messages, and as a consequence must also be given as input along with the scrutinee.
+The algorithm then tries to construct the correct type for the motive, which requires all the indices as input in addition to the variable
+which must be proven, \textit{e.g.} for length-indexed lists the motive type would be `\texttt{(n : Nat) $\rightarrow$ (xs : Vect n a) $\rightarrow$ Type}' (note that the type parameter `\texttt{a}' is parametrised over the whole type).
+
+Following the creation of the motive the algorithm tries to construct a fitting message type for each constructor. The message type for a constructor contains all the constructor arguments, and for each inductive argument
+the recursive application of the motive on that argument must additionally be given as argument. The result type for a message is the application of the motive to the constructor given its input arguments. For types with indicies
+it should be noted that indices must be retrieved from the relevant parts, \textit{i.e.} in the types for inductive arguments for recursive applications of the motive and the return type of the constructor for the final result.
+For example, the motive for `\texttt{::}' is `\texttt{(n : Nat) $\rightarrow$ (x : a) $\rightarrow$ (xs : Vect n a) $\rightarrow$ P n xs $\rightarrow$ P (S n) (x :: xs)}'.
+
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[otherkeywords={elim_vect}]{examples/elimvect.idr}
+\end{CenteredBox}
+\caption{Generated Eliminator for Length-indexed Lists}
+\label{fig:genelimvect}
+\end{figure}
+
+
+Finally the eliminator type must be constructed, by generalising the parameters, the motive type, the type of messages and the scrutinee indices and scrutinee type over the motive application on the scrutinee, \textit{e.g.}
+The lines 1--5 of Figure~\ref{fig:genelimvect} shows the final type for the eliminator of length-indexed lists.
+After constructing the eliminator type, it is elaborated using Idris built-in method for elaborating type declarations.
+
+After finding the correct type for the eliminator, constructing the clauses is a relatively simple task. If there are no constructors for a type nothing is further done, and if there are constructors then a clause
+is generated for each constructor.
+
+All left hand sides of clauses for constructors share the first part, namely the parameter, motive and message arguments and the only thing that changes is the pattern matching
+on the scrutinee and related indicies to check if they match the correct constructor. On the right hand sides the matching messages are called with the constructor arguments, and if there are any recursive application of the motive
+in the type of message, the eliminator is applied recursively on the matching arguments. The eliminator clauses are then collectively elaborated using Idris built-in method for elaborating function declarations.
+Figure~\ref{fig:genelimvect} line 6--8, shows the eliminator clauses for length-indexed lists.
+
+\textbf{NOTE:} Write about limitations regarding induction-recursion
+\textbf{NOTE:} Write something about having an eliminator type class
+
 \subsection{The Induction Tactic}
 \label{sub:TheInductionTactic}
+The induction tactic takes a variable name as input and proceeds in two phases: extracting the motive from the current goal, and applying the eliminator on the motive possibly creating new goals. Figure~\ref{fig:indtac} shows
+the pseudocode for the induction tactic algorithm.
 
+\begin{figure}[H]
+  \begin{center}
+    \begin{algorithmic}[1]
+    \Procedure{Induction}{$name, goal$}
+    \State $\left(termValue, termType\right) \gets \Call{Check}{name}$
+    \State $\Call{Normalise}{termType}$
+    \State $\left(typeName, typeArguments\right) \gets \Call{UnApply}{termType}$
+    \State $eliminatorName \gets \Call{EliminatorName}{typeName}$
+    \State $eliminatorType \gets \Call{LookupType}{eliminatorName}$
+    \State $parameters \gets \Call{Parameters}{typeArguments}$
+    \State $indicies \gets \Call{Indicies}{typeArguments}$
+    \State $\left(parameterTypes, motiveType, messageTypes, scrutineeIndices, scrutineeType\right) \gets \Call{Arguments}{eliminatorType}$
+    \State $motive \gets \Call{AbstractMotive}{motiveType, termValue, indicies, goal}$
+    \State $holes \gets \Call{MakeHoles}{messageTypes}$
+    \State $\Call{RemoveHole}{goal}$
+    \State $res \gets \Call{EliminateMotive}{parameters, motive, holes, indicies, termValue}$
+    \State \Return $\Call{Specialise}{res}$
+    \EndProcedure
+  \end{algorithmic}
+  \end{center}
+\caption{Induction Tactic}
+\label{fig:indtac}
+\end{figure}
 
+The algorithm starts by first retrieving the relevant term value and type from the context, and then normalising the type. The next steps is to retrieve the eliminator from context and decomposing it into its various parts
+(parameters, motive type, etc.). The most important part of the tactic is the abstraction of the motive from the current goal. This is done by creating lambda function for the indices and term in the goal that fits the motive type,
+and replacing all usages of the indices and term to use the names bound in the lambda value. For example, given the goal `\texttt{n = length xs}' where `\texttt{xs : Vect n a}', the algorithm abstract all instances of `\texttt{xs}' and `\texttt{n}' such that
+the motive is `\texttt{$\lambda$ m, ys $\Rightarrow$ m = length ys}'.
+The algorithm proceeds by creating new holes for each of the messages, in order to create the new goals necessary to proof the motive (\textit{i.e.} the induction steps) and removes the current goal from the context.
+Finally the eliminator is called with parameters, the motive, the generated holes and the old goals extracted indices and value. In order to aid proving, the result is specialised before being returned, \textit{i.e.} lambda arguments are normalised
+where possible.
+
+\textbf{NOTE:} Write about limitations of induction tactic
 \section{Evaluation}
 \label{sec:Evaluation}
 \section{Conclusion}
