@@ -1,0 +1,10 @@
+Idris is a dependently-typed programming language with support for tactics-based theorem proving. This report outlines my work on
+understanding what dependently typed languages are, how it is possible to do proves using tactics and finally implement a tactic that
+allows proofs by induction myself.
+The induction tactic is based on eliminators, which represent a logic-based approach to computation using an inductive data-type with some similarities to pattern matching
+in the programming world.
+
+The work resulted in an algorithm for generating eliminators which supported all various kinds of inductive data-structures, except inductive-recursive ones. An induction
+tactic based on the eliminators was created successfully, albeit with minor limitations that should be easily solvable in the future.
+
+The following pull requests signifies my work on eliminators and the induction tactic: \url{https://github.com/idris-lang/Idris-dev/pull/673} and \url{https://github.com/idris-lang/Idris-dev/pull/713}.

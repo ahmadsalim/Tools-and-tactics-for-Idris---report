@@ -1,0 +1,10 @@
+Idris has already a Parsec-based parser, but errors are uninformative and highly inaccurate. Furthermore, the language lacks a formal grammar
+and as a consequence suffers from many inconsistencies.
+
+This report details my work on formalizing the grammar of Idris and porting the parser to Trifecta such that error messages are improved,
+the syntax is more consistent and source code location tracking is accurate.
+The work had showed great improvements especially regarding error messages, has been well-received
+by the community and is now the sole official parser.
+
+The majority of my work is represented by the following pull requests: \url{https://github.com/idris-lang/Idris-dev/pull/492},
+\url{https://github.com/idris-lang/Idris-dev/pull/497} and \url{https://github.com/idris-lang/Idris-dev/pull/506}.

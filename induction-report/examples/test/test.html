@@ -1,0 +1,166 @@
+<!DOCTYPE HTML>
+<html><head><style>a { text-decoration: none; color: black; font-style: italic; }</style><title>ELIMTest</title></head><body><pre>module ELIMTest
+%elim data  <span id="clickablehtml:2:13">Unit</span> : Type where
+  MkUnit <span id="clickablehtml:3:10">:</span> Unit
+
+%elim data  <span id="clickablehtml:5:13">Boolean</span> : Type where
+  False <span id="clickablehtml:6:9">:</span> Boolean
+  True  <span id="clickablehtml:7:9">:</span> Boolean
+
+%elim data <span id="clickablehtml:9:12">Pair</span> : Type -&gt; Type -&gt; Type where
+  MkPair <span id="clickablehtml:10:10">:</span> a -&gt; b -&gt; Pair a b
+
+%elim data  <span id="clickablehtml:12:13">TNat</span> : Type where
+  TO <span id="clickablehtml:13:6">:</span> TNat
+  TS <span id="clickablehtml:14:6">:</span> TNat -&gt; TNat
+
+infixl 8 +++
+
+(+++) <span id="clickablehtml:18:7">:</span> TNat -&gt; TNat -&gt; TNat
+TO +++ m     = m
+(TS n) +++ m = <a href="#clickablehtml:14:6">TS</a> (n <a href="#clickablehtml:18:7">+++</a> m)
+
+%elim data <span id="clickablehtml:22:12">TList</span> : Type -&gt; Type where
+  TNil <span id="clickablehtml:23:8">:</span> TList a
+  TCons <span id="clickablehtml:24:9">:</span> a -&gt; TList a -&gt; TList a
+
+infixl 8 @@@
+(@@@) <span id="clickablehtml:27:7">:</span> TList a -&gt; TList a -&gt; TList a
+TNil          @@@ ys = ys
+(TCons x xs)  @@@ ys = <a href="#clickablehtml:24:9">TCons</a> x (xs <a href="#clickablehtml:27:7">@@@</a> ys)
+
+%elim data <span id="clickablehtml:31:12">TVect</span> : TNat -&gt; Type -&gt; Type where
+  VNil <span id="clickablehtml:32:8">:</span> TVect TO a
+  VCons <span id="clickablehtml:33:9">:</span> a -&gt; TVect n a -&gt; TVect (TS n) a
+
+length <span id="clickablehtml:35:8">:</span> (TVect n a) -&gt; TNat
+length VNil         = <a href="#clickablehtml:13:6">TO</a>
+length (VCons x xs) = <a href="#clickablehtml:14:6">TS</a> (length xs)
+
+length_proof <span id="clickablehtml:39:14">:</span> (n : TNat) -&gt; (vs : TVect n a) -&gt; (n = length vs)
+length_proof {a} n vs = elim_for ELIMTest.TVect a
+                        (\m, xs =&gt; m = length xs)
+                        ?nilCase
+                        ?consCase
+                        n
+                        vs
+
+n_plus_O <span id="clickablehtml:47:10">:</span> (n : TNat) -&gt; (n +++ TO = n)
+n_plus_O n = elim_for ELIMTest.TNat (\m =&gt; m +++ TO = m) ?n_plus_O_Ocase ?n_plus_O_Scase m
+
+n_plus_S_m <span id="clickablehtml:50:12">:</span> (n : TNat) -&gt; (m : TNat) -&gt; (n +++ TS m = TS (n +++ m))
+n_plus_S_m n m = elim_for ELIMTest.TNat (\p =&gt; p +++ TS m = TS (p +++ m)) ?n_plus_S_m_Ocase ?n_plus_S_m_Scase n
+
+plus_commutes <span id="clickablehtml:53:15">:</span> (n : TNat) -&gt; (m : TNat) -&gt; (n +++ m = m +++ n)
+plus_commutes n m = elim_for ELIMTest.TNat (\p =&gt; p +++ m = m +++ p) ?plus_commutes_Ocase ?plus_commutes_Scase n
+
+%elim data <span id="clickablehtml:56:12">BinaryTree</span> : Type -&gt; Type where
+  BLeaf <span id="clickablehtml:57:9">:</span> BinaryTree a
+  BNode <span id="clickablehtml:58:9">:</span> BinaryTree a -&gt; a -&gt; BinaryTree a -&gt; BinaryTree a
+
+%elim data <span id="clickablehtml:60:12">WeightedBinaryTree</span> : TNat -&gt; Type -&gt; Type where
+  WLeaf <span id="clickablehtml:61:9">:</span> WeightedBinaryTree TO a
+  WNode <span id="clickablehtml:62:9">:</span> WeightedBinaryTree n a -&gt; a -&gt; WeightedBinaryTree m a -&gt; WeightedBinaryTree (n +++ m +++ TS TO) a
+
+%elim data <span id="clickablehtml:64:12">Node</span> : Type -&gt; Type where
+  Node2 <span id="clickablehtml:65:9">:</span> a -&gt; a -&gt; Node a
+  Node3 <span id="clickablehtml:66:9">:</span> a -&gt; a -&gt; a -&gt; Node a
+
+%elim data <span id="clickablehtml:68:12">FingerTree</span> : Type -&gt; Type where
+  Empty <span id="clickablehtml:69:9">:</span> FingerTree a
+  Single <span id="clickablehtml:70:10">:</span> a -&gt; FingerTree a
+  Deep <span id="clickablehtml:71:8">:</span> List a -&gt; FingerTree (Node a) -&gt; List a -&gt; FingerTree a
+
+mutual
+  data <span id="clickablehtml:74:8">Even</span> : TNat -&gt; Type where
+    evenZero <span id="clickablehtml:75:14">:</span> Even TO
+    evenSuc  <span id="clickablehtml:76:14">:</span> Odd n -&gt; Even (TS n)
+
+  data <span id="clickablehtml:78:8">Odd</span> : TNat -&gt; Type where
+    oddSuc   <span id="clickablehtml:79:14">:</span> Even n -&gt; Odd (TS n)
+
+mutual
+  data <span id="clickablehtml:82:8">FList</span> : Type -&gt; Type where
+    FNil  <span id="clickablehtml:83:11">:</span> FList a
+    FCons <span id="clickablehtml:84:11">:</span> (x : a) -&gt; (l : FList a) -&gt; {isFresh : fresh x l} -&gt; FList a
+
+  fresh <span id="clickablehtml:86:9">:</span> a -&gt; (FList a) -&gt; Type
+  fresh x FNil           = ()
+  fresh x (FCons y xs) = ((x = y) -&gt; _|_, fresh x xs)
+
+mirror <span id="clickablehtml:90:8">:</span> BinaryTree a -&gt; BinaryTree a
+mirror BLeaf = <a href="#clickablehtml:57:9">BLeaf</a>
+mirror (BNode l v r) = <a href="#clickablehtml:58:9">BNode</a> (mirror r) v (mirror l)
+
+mirror_proof <span id="clickablehtml:94:14">:</span> {a : Type} -&gt; (b : BinaryTree a) -&gt; (b = mirror (mirror b))
+mirror_proof {a} b = elim_for ELIMTest.BinaryTree a (\bb =&gt; bb = mirror (mirror bb)) ?mirror_leaf_case ?mirror_node_case b
+
+---------- Proofs ----------
+
+ELIMTest.mirror_node_case = proof
+  compute
+  intros
+  rewrite ihb__0__0 
+  rewrite ihb__1__1 
+  trivial
+
+
+ELIMTest.mirror_leaf_case = proof
+  compute
+  intros
+  trivial
+
+
+ELIMTest.plus_commutes_Scase = proof
+  compute
+  intros
+  rewrite (sym (n_plus_S_m m t__0__))
+  rewrite iht__0__0 
+  trivial
+
+
+ELIMTest.plus_commutes_Ocase = proof
+  compute
+  intros
+  rewrite n_plus_O m
+  trivial
+
+
+ELIMTest.n_plus_S_m_Scase = proof
+  compute
+  intros
+  rewrite iht__0__0 
+  trivial
+
+
+ELIMTest.n_plus_S_m_Ocase = proof
+  compute
+  intros
+  trivial
+
+
+ELIMTest.n_plus_O_Scase = proof
+  compute
+  intros
+  rewrite iht__0__0 
+  trivial
+
+
+ELIMTest.n_plus_O_Ocase = proof
+  compute
+  intros
+  trivial
+
+
+ELIMTest.consCase = proof
+  compute
+  intros
+  rewrite iht__2__2 
+  trivial
+
+
+ELIMTest.nilCase = proof
+  compute
+  intros
+  trivial
+</pre></body></html>

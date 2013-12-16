@@ -40,7 +40,7 @@
 \newtheorem{dfnt}{Definition} %Definition theorem
 \begin{document}
 
-\title{Tactic for Inductive Proofs \\ \normalsize{A part of the Tools and Tactics for Idris project}}
+\title{Tactic for Inductive Proofs \\ \normalsize{Part II of the Tools and Tactics for Idris project}}
 \author{Ahmad Salim Al-Sibahi (\texttt{asal@itu.dk}) \\IT University of Copenhagen\\Supervisors: \\David Raymond Christiansen (\texttt{drc@itu.dk})\\ Dr. Peter Sestoft (\texttt{sestoft@itu.dk})}
 \date{\today}
 
@@ -54,27 +54,27 @@
 %\clearpage
 \section{Introduction}
 \label{sec:Introduction}
-Today, functional languages are becoming increasingly popular for use in the enterprise world\,\cite{ford2013functionalthinking}.
-Functional programming allows the writing of elegant and concise programs using concepts such as higher-order abstractions, inductive data-types and pattern matching.
-Additionally, features such as purity and parametric polymorphism enable the type system to provide free theorems for functions,
+Today, functional languages are becoming increasingly popular for use in the enterprise world\,\cite{ford2013functionalthinking}, and some traditional languages like C\# and Java are getting more and more functional features\,\cite{oracle2013projectlambda}\cite{microsoft2013linq}.
+Functional programming languages allow writing elegant and concise programs using concepts such as higher-order functions, inductive data-types and pattern matching.
+Additionally, features such as purity and parametric polymorphism enable the type system to provide free theorems about functions,
 and allow the programmer to reason more logically about a given program\,\cite{wadler1989theorems}.
 
-Yet, there are still limitations of what these type systems provide in terms of correctness. For example, the programmer cannot ensure that two lists have equal lengths before doing a zip operation.
+Yet, there are still limitations of what these type systems provide in terms of correctness and tool support. For example, the programmer cannot ensure that two lists have equal lengths before doing a zip operation.
 
-Dependently-typed programming\,\cite{univalent2013hott} allow the programmer try to mitigate these limitations by allowing types to be indexed by values, and provide no distinction between types and terms.
-Furthermore, because of the way many dependently-typed languages are designed, the programmer can do proving of theorems within the realm of intuitionistic logic in accordance with the Curry-Howard isomorphism\cite{mckinna2013deptypes}.
+Dependently typed programming\,\cite{univalent2013hott} tries to mitigate these limitations by allowing types to be indexed by values, and provides no distinction between terms and types.
+Furthermore, because of the way many dependently typed languages are designed, the programmer can prove theorems using intuitionistic logic in accordance with the Curry-Howard isomorphism\cite{mckinna2013deptypes}.
 
-Idris is a general-purpose programming language designed by Edwin Brady with support for dependent types\,\cite{brady2013idris}. In addition to a dependent type system, Idris features so-called tactics which allow an interactive style of doing theorem proving similar to Coq\,\cite{coqteam2013coq}.
+Idris is a general-purpose programming language designed by Edwin Brady with support for dependent types\,\cite{brady2013idris}. In addition to a dependent type system, Idris features so-called tactics which allow an interactive style of theorem proving similar to Coq\,\cite{coqteam2013coq}.
 
-The report will be structured as follows. In Section~\ref{sec:ProgrammingwithDependentTypes} I will investigate and explain what dependent-types are. Section~\ref{sec:Tactics-basedTheoremProving} will discuss what tactics are, and how use them. My work on the induction tactic will be outlined in Section~\ref{sec:Solution} and evaluated in Section~\ref{sec:Evaluation}. Finally, I will conclude in Section~\ref{sec:Conclusion}.
+This report will be structured as follows. In Section~\ref{sec:ProgrammingwithDependentTypes} I will investigate and explain what dependent types are. Section~\ref{sec:Tactics-basedTheoremProving} will discuss what tactics are, and how to use them. My work on the induction tactic will be outlined in Section~\ref{sec:Solution} and evaluated in Section~\ref{sec:Evaluation}. Finally, I will conclude in Section~\ref{sec:Conclusion}.
 
 \section{Programming with Dependent Types}
 \label{sec:ProgrammingwithDependentTypes}
 
 \subsection{Dependent Types in Idris}
 \label{sub:DependentTypesinIdris}
-As mentioned in Section~\ref{sec:Introduction}, dependent types allow types to not only dependent on other types but also on ordinary values \textit{e.g.}\ natural numbers. The power is apparent when we can define
-data structures and functions which ensure at compile-time that only specific input can be provided at compile time and can provide programmers with interesting theorems about the given programs.
+As mentioned in Section~\ref{sec:Introduction}, dependent types allow types to not only dependent on other types but also on ordinary values \textit{e.g.}\ natural numbers. The power is apparent when it is possible to define
+data structures and functions that ensures, at compile-time, that only specific input can be provided and can provide programmers with interesting theorems about the given programs.
 In that way, the types represent proofs that particular properties hold for the written program.
 
 \begin{figure}[H]
@@ -85,16 +85,16 @@ In that way, the types represent proofs that particular properties hold for the 
 \label{fig:avltree}
 \end{figure}
 
-Figure~\ref{fig:avltree} shows a definition of an AVL tree in Idris. AVL trees\,\cite{goodrichtamassia2002algorithmdesign} are restructured on insertion and removal when the difference between the two child trees is larger than one. Thus, it is ensured that many operations are in logarithmic time by limiting the depth of the final tree.
+Figure~\ref{fig:avltree} shows a definition of an AVL tree in Idris. AVL trees\,\cite{goodrichtamassia2002algorithmdesign} are restructured on insertion and removal when the difference between the two child trees is larger than one. Thus, it is ensured that many operations stay in logarithmic time by limiting the depth of the final tree.
 Using the power of dependent types the definition of AVL trees in the figure ensures that only balanced trees can be constructed. This is mainly done by the following two properties:
 
 \begin{itemize}
-  \item The AVL tree is indexed by its depth, which is defined as `\texttt{0}' for leafs and `\texttt{1+max(n$_l$, n$_r$)}' for intermediate nodes where
+  \item The AVL tree is indexed by its depth which is defined as `\texttt{0}' for leafs and `\texttt{1+max(n$_l$, n$_r$)}' for intermediate nodes, where
     `\texttt{n$_l$}' and `\texttt{n$_r$}' are the depth of the left and right sub-trees.
-  \item When trying to construct a new tree-node with two sub-trees it requires a \textit{proof object} which ensures that the difference in depth is at most 1 (see `\texttt{Balanced$_1$}').
+  \item When trying to construct a new tree-node with two sub-trees it requires a \textit{proof object}, `\texttt{Balanced$_1$}', which ensures that the difference in depth is at most 1.
 \end{itemize}
 
-The data type `\texttt{Balanced$_1$}' ensures there is at most a difference of 1 between its two arguments by providing no constructors that can create a
+The way `\texttt{Balanced$_1$}' ensures there is at most a difference of 1 between its two arguments is by providing no constructors that can create a
 value of `\texttt{Balanced$_1$}' with a larger difference. So even if a type like `\texttt{Balanced$_1$ 3 5}' is referred to, a value of this type cannot be constructed
 and the program relying on this value wouldn't compile.
 
@@ -112,18 +112,18 @@ In contrast `\texttt{testAVLIncorrect}' is rejected by the compiler, because the
 
 \subsection{Propositional Equality}
 \label{sub:PropositionalEquality}
-Since Idris permits restricting how objects are constructed bye predicating types on values, it opens up the possibility of defining a type for reasoning about propositional equality (see Figure~\ref{fig:propositionalequality})\,\cite{mcbride1999thesis}.
+Since Idris permits restricting how objects are constructed by predicating types on values, it opens up the possibility of defining a type for reasoning about propositional equality (see Figure~\ref{fig:propositionalequality})\,\cite{mcbride1999thesis}.
 
 \begin{figure}[H]
 \begin{CenteredBox}
   \lstinputlisting[firstline=1, lastline=2]{examples/propositionequality.idr}
 \end{CenteredBox}
-\caption{Propositional Equality}
+\caption{Heterogeneous Propositional Equality}
 \label{fig:propositionalequality}
 \end{figure}
 
-While the propositional equality type permits the programmer to refer to say that objects of different types might be equal, the only way to actually construct a value of the type is using `\texttt{refl}' which
-only accepts a value of a single type. Therefore, propositional equality allows the programmer to state interesting theorems about the program which then must be proved separately later.
+While the propositional equality type permits the programmer to refer to objects of different types as being equal, the only way to actually construct a value of the type is using `\texttt{refl}' which
+only accepts a value of a single type. Therefore, propositional equality allows the programmer to state interesting theorems about the program which then must be proved later.
 
 \begin{figure}[H]
 \begin{CenteredBox}
@@ -133,17 +133,17 @@ only accepts a value of a single type. Therefore, propositional equality allows 
 \label{fig:npluso}
 \end{figure}
 
-Figure~\ref{fig:npluso} shows a proof of that adding a zero on the left-hand side of a natural number yields the same natural number. While this theory might seem a bit simple for a human reader, if
-the addition was defined by recursion on the first argument the type checker would reject the theorem if no further proof was provided.
+Figure~\ref{fig:npluso} shows a proof of that adding a zero on the left-hand side of a natural number yields the same natural number. While this property might seem obvious for a human reader, if
+the addition was defined by recursion on the first argument, the type checker would not use this equality while comparing types if no further proof was provided.
 
-The proof itself is simple in essence, as it is done by recursion. In the base case (0), it is obvious for the type checker than it holds because everything is a constant and can be reduced to the same form (this it transforms `\texttt{0 + 0 = 0}' to `\texttt{0 = 0}').
-The inductive step is simply apply the congruence relation on the inductive hypothesis to transform `n+0=n' to `S n + 0 = S n', which is the expected resulting type.
-The congruence relation utilises the purity and injectivity of functions and specify that given two values which are proven equal in a domain, they are also equal in the input functions co-domain.
-Propositional equality is a key concept in Dependently-typed languages, since it allows the programmer to proof theorems about types that wouldn't simply have been accepted by the type checker.
+The proof itself is straightforward induction on `\texttt{n}', here represented as a recursive function. In the base case `\texttt{0}', it is obvious for the type checker than it holds because everything can be reduced to the same form (it transforms `\texttt{0 + 0 = 0}' to `\texttt{0 = 0}').
+The inductive step is to simply apply the congruence relation on the inductive hypothesis to transform `\texttt{n + 0 = n}' to `\texttt{S n + 0 = S n}', which is the expected type.
+The congruence relation utilises the purity and injectivity of functions and specify that given two values which are proven equal in a domain, they are also equal in the input function's co-domain.
+Propositional equality is a key concept in dependently typed languages, since it allows the programmer to prove theorems about types that wouldn't simply have been accepted by the type checker.
 
 \subsection{Formation, Introduction, Elimination}
 \label{sub:FormationIntroductionElimination}
-Type declaration, constructors and pattern matching are in many ways programming-oriented terms. A more logic-oriented way of thinking of types and constructors is to talk about formation, introduction and elimination
+Type declarations, constructors and pattern matching are in many ways programming-oriented terms. A more logic-oriented way of thinking of types and constructors is to talk about formation, introduction and elimination
 rules.
 
 
@@ -157,7 +157,7 @@ rules.
 \end{figure}
 
 Formation rules are used to define what valid ways of constructing a type there are, i.e.\ what type parameters and indices are required in order to create such type, analogous to the signature
-of a data declaration in Idris. Figure~\ref{fig:formationnat} shows the formation rule for natural numbers, where it is declared that it is an ordinary type without any parameters (`\texttt{$\ast$}' is the type of types).
+of a data declaration in Idris. Figure~\ref{fig:formationnat} shows the formation rule for natural numbers, where it is declared as an ordinary type without any type arguments (`\texttt{$\ast$}' is the type of types).
 
 \begin{figure}[H]
   \begin{subfigure}[b]{0.5\textwidth}
@@ -177,7 +177,7 @@ of a data declaration in Idris. Figure~\ref{fig:formationnat} shows the formatio
 \end{figure}
 
 Introduction rules are analogous to constructor declarations, in that they define how it is possible to create a type in the current context. Figure~\ref{fig:intronat} shows an inductive definition
-for integers, where 0 is defined to be a natural number and then given any number the successor of that number is a natural number.
+for natural numbers, where `\texttt{0}' is defined to be a natural number and then given any number the successor of that number is defined to be a natural number.
 
 \begin{figure}[H]
   \begin{prooftree}
@@ -191,20 +191,20 @@ for integers, where 0 is defined to be a natural number and then given any numbe
 \label{fig:elimnat}
 \end{figure}
 
-The elimination rule is probably the most important rule in this set, since they define how to actually use the types to prove theorems. While eliminators exist in the programming world, the most common way of doing computation using a
-data type is by pattern matching. However, it will become apparent that if it is necessary to prove something about all possible values of a particular type, eliminators provide a convenient way to do induction proofs.
+The elimination rule is probably the most important rule in this collection of rule, since they define how to use the types to prove theorems. While eliminators exist in the programming world, the most common way of performing computation using a
+data type is by pattern matching. It will however become apparent that if it is necessary to prove something about all possible values of a particular type, eliminators provide a convenient way of doing that using induction.
 
 Generally, the elimination rule of a type works by requiring the motive to proof as an input, in addition to ``messages'' which represent case analyses on each possible constructor and a ``scrutinee'' argument of the type which is used
-to determine the result. The messages are structured such that the arguments for the particular constructor are given as arguments and must return a proof of the property on that constructor. If there are any inductive arguments in a constructor,
-the inductive hypothesis (recursive proof) must additionally be given as argument to the relevant message.
+to determine the result. The messages are structured such that they match the arguments of a particular constructor. If there are any inductive arguments in a constructor,
+the inductive hypothesis for each of the arguments must additionally be provided to the relevant message.
 Figure~\ref{fig:elimnat} shows the elimination rule for natural numbers where `\texttt{P}' is the motive to be proven, `\texttt{P$_Z$}' and `\texttt{P$_S$}' are the messages for the zero and successor case and `\texttt{m}' is the scrutinee.
 
-There is however variance on how the elimination look for type with indices and a couple of special types like `\texttt{$\bot$}' and propositional equality. The rules for these types are the following:
+There are exception on how the elimination look for types with indices and a types like `\texttt{$\bot$}' and propositional equality. The rules for these types are the following:
 \begin{description}
-  \item[Types with indices] The indices must be a part of the signature of the motive to proof, since they can vary depending on the constructor used (see Figure~\ref{fig:elimvect} for elimination rule of length-indexed lists).
+  \item[Types with indices] The indices must be a part of the motive to proof, since they can vary depending on what constructor is used (see Figure~\ref{fig:elimvect} for elimination rule of length-indexed lists).
   \item[Types without constructors] For `\texttt{$\bot$}' and similar types, the elimination rule is simplified since it is not possible to construct a value of such type. Therefore, if these types are in a premise of a proof one could proof anything (principle of explosion).
-  \item[Type for propositional equality] While the type presented for propositional equality can equal values of different types at type level, it was only possible to construct an object if both sides of the equality had the same type. Similarly, the eliminator
-    for propositional equality should only eliminate over values of the same type; otherwise the rule wouldn't allow substitution of two values of the same type\,\cite{mcbride1999thesis}.
+  \item[Type for propositional equality] While the type presented for propositional equality can relate values of different types at type level, it was only possible to construct an object if both sides of the equality had the same type. Similarly, the eliminator
+    for propositional equality should only eliminate over values of the same type; otherwisem the rule wouldn't allow substitution of two values of the same type and be significantly less useful in practice\,\cite{mcbride1999thesis}.
 \end{description}
 
 \begin{figure}[H]
@@ -212,13 +212,14 @@ There is however variance on how the elimination look for type with indices and 
   \begin{prooftree}
     \AxiomC{$\alpha : \ast$}
     \AxiomC{$P : \left(n:Nat\right) \rightarrow Vect \, n \, \alpha \rightarrow \ast$}
+    \AxiomC{$P_\mathbf{Nil} : P \, 0 \, \mathbf{Nil}$}
     \noLine
-    \UnaryInfC{$P_\mathbf{Nil} : P \, 0 \, \mathbf{Nil}$}
-    \AxiomC{$m : Nat$}
-    \AxiomC{$ys : Vect\, m\, \alpha$}
+    \TrinaryInfC{$P_{\mathbf{::}} : n : Nat, x : \alpha, xs : Vect \, n \, \alpha, P \, n \, xs \vdash P \, \left(\mathbf{S}\,n\right) \, \left(x \mathbf{::} xs\right)$}
     \noLine
-    \BinaryInfC{$P_{\mathbf{::}} : n : Nat, x : \alpha, xs : Vect \, n \, \alpha, P \, n \, xs \vdash P \, \left(\mathbf{S}\,n\right) \, \left(x \mathbf{::} xs\right)$}
-    \TrinaryInfC{$ind_{Vect} \left(P, P_\mathbf{Nil}, P_{\mathbf{::}}, m, ys\right) : P \, m \, ys$}
+    \UnaryInfC{$m : Nat$}
+    \noLine
+    \UnaryInfC{$ys : Vect\, m\, \alpha$}
+    \UnaryInfC{$ind_{Vect} \left(P, P_\mathbf{Nil}, P_{\mathbf{::}}, m, ys\right) : P \, m \, ys$}
   \end{prooftree}
 \end{center}
 \caption{Elimination rule for length-indexed lists}
@@ -227,7 +228,7 @@ There is however variance on how the elimination look for type with indices and 
 
 \subsection{Elaboration and Unification}
 \label{sub:ElaborationandUnification}
-When talking about the compiling and typing proceses in Idris, I am usually referring to the ``elaboration'' and ``unification'' processes in Idris (although there are various other actions in the pipeline)\,\cite{brady2013idris}.
+When talking about the compilation and typing processes in Idris, I am usually referring to the relevant part of the ``elaboration'' process\,\cite{brady2013idris}.
 
 Elaboration is the process of translating the high-level code of Idris to a core type theory called TT\@. The main idea of elaboration is to simplify constructs like type-classes, implicit arguments and various pattern matching clauses (like where-blocks) into
 dependent records, explicit arguments and case-trees respectively.
@@ -235,16 +236,15 @@ dependent records, explicit arguments and case-trees respectively.
 The elaboration process is done using a combination of tactics, and tries to achieve it goal by three means: type checking, normalisation and unification.
 \begin{enumerate}
   \item Type checking ensures that values belong correctly to the types specified, \textit{e.g.}\ that `\texttt{S Z}' is of type `\texttt{Nat}'.
-  \item Normalisation tries do reduce a term to a simplified form, and is especially useful in Idris because terms can be index types. This is done to ensure that \textit{e.g.}\ `\texttt{Z+n}' is reduced to `\texttt{n}', so that the programmer does not need
-    to explicitly proof things that are equal by definition (assuming that `+' reduces on the left argument as is done in Idris).
+  \item Normalisation tries do reduce a term to its simplified form, and is especially useful in Idris because terms can be index types. This is done to ensure that \textit{e.g.}\ `\texttt{0+n}' is reduced to `\texttt{n}', so that the programmer does not need to prove things that are definitionally equal.
   \item Unification is the process of resolving what values are valid in unfilled parts of a program \textit{i.e.}\ implicit arguments and arguments denoted with `\texttt{\_}', in order to get a complete term. For example, given the value `\texttt{[1,2]}'
-    of a type `\texttt{Vect n a}', the type parameter `\texttt{a}' must be unified to `\texttt{Integer}' (as that is the type of elements) and the length index `\texttt{n}' must be unified to 2 (size of the list).
+    of a type `\texttt{Vect n a}', the type parameter `\texttt{a}' must be unified to `\texttt{Integer}' and the length index `\texttt{n}' must be unified to 2.
 \end{enumerate}
 
 \section{Tactics-based Theorem Proving}
 \label{sec:Tactics-basedTheoremProving}
-In order to aid the programmer when doing proving properties about a particular programmer that is written, Idris support tactic-scripts. A tactic is a structured proven instruction that changes the context (either the goals or premises) of a proof,
-and that is available in such way that a combination of tactics represent the particular program necessary in order to achieve the desired goal.
+In order to aid the programmer when proving properties about a particular program that is written, Idris support tactic-scripts. A tactic is a structured readily-proven instruction that changes the context (the structure of goals and premises) of a proof,
+and can be combined in order to achieve the desired goal.
 
 \begin{figure}[H]
 \begin{CenteredBox}
@@ -254,7 +254,7 @@ and that is available in such way that a combination of tactics represent the pa
 \label{fig:tactictheorems}
 \end{figure}
 
-Figure~\ref{fig:tactictheorems} states three theorems about equality of natural numbers that needs to be proven: reflexivity, symmetry and transitivity. The theorems are represented at the type level using
+Figure~\ref{fig:tactictheorems} states three example theorems about equality of natural numbers: reflexivity, symmetry and transitivity. The theorems are represented at the type level using
 propositional equality, and at the value level each term is assigned a meta-variable. Meta-variables specify that the proofs will be done separately, possibly using the tactic support of Idris.
 
 \begin{figure}[H]
@@ -265,16 +265,16 @@ propositional equality, and at the value level each term is assigned a meta-vari
 \label{fig:tacticproofs}
 \end{figure}
 
-The proofs for the theorems stated is found in Figure~\ref{fig:tacticproofs}. The proof for reflexivity is simple, the `\texttt{intro}' tactic is used such that the parameter `\texttt{n}' is added to the premises and then the tactic
-`\texttt{trivial}' is used. The `\texttt{trivial}' tries to solve the goal by either using definitional equality or by finding a matching expression among the premises. As such, `\texttt{trivial}' can be seen
+The proofs for the theorems stated is found in Figure~\ref{fig:tacticproofs}. Reflexivity is simple to proof: first, the `\texttt{intro}' tactic is used such that the parameter `\texttt{n}' is added to the premises and then the tactic
+`\texttt{trivial}' is used. `\texttt{trivial}' tries to solve the goal by either using definitional equality or by matching the goal against the premises. As such, `\texttt{trivial}' can be seen
 as the simplest tactic that can actually finish a proof, since it refines using things already known.
 
-The proof for symmetry is marginally more complicated as it uses the `\texttt{rewrite}' tactic. The `\texttt{rewrite}' accepts an equation, and replaces all instances of the equation right hand side with the equation left hand side in the goal.
+The proof for symmetry is marginally more complicated as it uses the `\texttt{rewrite}' tactic. `\texttt{rewrite}' accepts an equation, and replaces all instances of the expression on the right hand side of the equation in the goal with the expression on the left hand side.
 In the case for symmetry it had the replaced the `\texttt{m = n}' goal with `\texttt{n = n}'. After rewriting, the goal is true by definitional equality and
 `\texttt{trivial}' can simply be used.
 
-The final example of proving transitivity, uses yet another two constructs `\texttt{sym}' and `\texttt{exact}'. `\texttt{sym}' is a construct that exploits symmetry and returns the symmetric version of an equation, and is useful in combination
-with `\texttt{rewrite}' if the programmer wants to replace with the right hand side of an equation instead. In the example the `\texttt{rewrite (sym H1)}' part replaces `\texttt{n = o}' with `\texttt{m = o}'. Since `\texttt{m = o}' exist in
+The final example of proving transitivity, uses yet another two tactics `\texttt{sym}' and `\texttt{exact}'. `\texttt{sym}' is a tactic that returns the symmetric version of an equation, and is often useful in combination
+with `\texttt{rewrite}', e.g. if the programmer wants to rewrite in the other direction. In the example the `\texttt{rewrite (sym H1)}' part replaces `\texttt{n = o}' with `\texttt{m = o}'. Since `\texttt{m = o}' exist in
 the context the `\texttt{exact}' tactic finishes the proof by specifying that the goal is already proven as `\texttt{H1}'. While it is possible to use `\texttt{trivial}' instead of `\texttt{exact}' in this case, `\texttt{exact}' provides
 more information on how the goal was reached.
 
@@ -282,8 +282,7 @@ The tactics shown was just a small subset of the tactics available in Idris, and
 
 \section{Solution}
 \label{sec:Solution}
-The primary objective of my solution is to create an induction tactic for Idris. This is done in two steps: generating the eliminator for a given data-type, and using that eliminator in a proof setting by abstracting the current goal
-as a motive to permit inductive proves.
+The primary objective of this project is to create an induction tactic for Idris. This is done in two steps: generating the eliminator for a given data-type, and using that eliminator on the goal in a proof context to do inductive proofs.
 
 \subsection{Generating Eliminators}
 \label{sub:GeneratingEliminators}
@@ -314,18 +313,17 @@ as a motive to permit inductive proves.
 \label{fig:elabelim}
 \end{figure}
 
-A simplified pseudo-code version of the algorithm for generating the eliminators for a type is shown in Figure~\ref{fig:elabelim} (the original code is written in imperative-style Haskell with do-notation).
-The algorithm takes three arguments, namely the name, type and constructors of the type which needs the generation of eliminators.
+A simplified pseudo-code version of the algorithm for generating the eliminators of a type is shown in Figure~\ref{fig:elabelim} (the original code is written in imperative-style Haskell with do-notation, see Appendix~\ref{sec:EliminatorElaboration}).
+The algorithm takes three arguments which are the name, type and constructors of the type which needs the generation of eliminators.
 
-The first step of the algorithm is to differentiate parameters from indices in the type arguments (because Idris unlike other dependently-typed languages doesn't have
-a built-in distinction). The distinction between parameters and indices is important, since parameters must be generalised across the eliminator type, while indicies
-can vary in the motive and messages, and as a consequence must also be given as input along with the scrutinee.
+The first step of the algorithm is to differentiate parameters from indices in the type arguments, because Idris doesn't have
+a built-in syntactic distinction. The distinction between parameters and indices is important, since parameters must be generalised across the eliminator type, while indicies
+can vary in the motive and messages, and as a consequence must be passed along as input alongside to the term to prove.
 The algorithm then tries to construct the correct type for the motive, which requires all the indices as input in addition to the variable
 which must be proven, \textit{e.g.} for length-indexed lists the motive type would be `\texttt{(n : Nat) $\rightarrow$ (xs : Vect n a) $\rightarrow$ Type}' (note that the type parameter `\texttt{a}' is parametrised over the whole type).
 
-Following the creation of the motive the algorithm tries to construct a fitting message type for each constructor. The message type for a constructor contains all the constructor arguments, and for each inductive argument
-the recursive application of the motive on that argument must additionally be given as argument. The result type for a message is the application of the motive to the constructor given its input arguments. For types with indicies
-it should be noted that indices must be retrieved from the relevant parts, \textit{i.e.} in the types for inductive arguments for recursive applications of the motive and the return type of the constructor for the final result.
+Following the creation of the motive, the algorithm tries to construct a fitting message type for each constructor. For a particular constructor, the message type contains all its arguments, and must additionally contain a proof of the motive for each recursive argument (induction hypothesis). The result type for a message is the application of the motive to the constructor given its input arguments. For types with indicies
+the indices must be retrieved for each proof of the motive, \textit{i.e.} in the types for inductive arguments for recursive applications of the motive and the return type of the constructor for the final result.
 For example, the motive for `\texttt{::}' is `\texttt{(n : Nat) $\rightarrow$ (x : a) $\rightarrow$ (xs : Vect n a) $\rightarrow$ P n xs $\rightarrow$ P (S n) (x :: xs)}'.
 
 
@@ -338,30 +336,49 @@ For example, the motive for `\texttt{::}' is `\texttt{(n : Nat) $\rightarrow$ (x
 \end{figure}
 
 
-Finally the eliminator type must be constructed, by generalising the parameters, the motive type, the type of messages and the scrutinee indices and scrutinee type over the motive application on the scrutinee, \textit{e.g.}
-The lines 1--5 of Figure~\ref{fig:genelimvect} shows the final type for the eliminator of length-indexed lists.
-After constructing the eliminator type, it is elaborated using Idris built-in method for elaborating type declarations.
+Finally, the complete eliminator type must be assembled, by generalising the parameters, the motive type, the type of messages and the scrutinee indices and scrutinee type over the motive application on the scrutinee, \textit{e.g.}
+ lines 1--5 of Figure~\ref{fig:genelimvect} shows the final type for the eliminator of length-indexed lists.
+After constructing the eliminator type, it is elaborated using the Idris built-in method for elaborating type declarations.
 
 After finding the correct type for the eliminator, constructing the clauses is a relatively simple task. If there are no constructors for a type nothing is further done, and if there are constructors then a clause
 is generated for each constructor.
 
-All left hand sides of clauses for constructors share the first part, namely the parameter, motive and message arguments and the only thing that changes is the pattern matching
-on the scrutinee and related indicies to check if they match the correct constructor. On the right hand sides the matching messages are called with the constructor arguments, and if there are any recursive application of the motive
-in the type of message, the eliminator is applied recursively on the matching arguments. The eliminator clauses are then collectively elaborated using Idris built-in method for elaborating function declarations.
+The left hand side of the clause for each constructor differ only by the patterns the scrutinee and related indices are matched to. The corresponding right hand side for a constructor contains a call to the relevant
+message with the bound arguments, and for each induction hypothesis required, a recursive application of the eliminator is used. The eliminator clauses are then collectively elaborated using Idris built-in method for elaborating function declarations.
 Figure~\ref{fig:genelimvect} line 6--8, shows the eliminator clauses for length-indexed lists.
 
-\textbf{NOTE:} Write about limitations regarding induction-recursion
-\textbf{NOTE:} Write something about having an eliminator type class
+\subsubsection{Limitations of the Generation Algorithm}
+\label{ssub:LimitationsofGenerationAlgorithm}
+A current limitation of the algorithm for generating eliminators is that it does not support inductive-recursive data structures\,\cite{dybjer2003induction}. The eliminator of an inductive-recursive data structure is dependent on finding a fix-point of the
+type definition and the dependent recursive function. This requires a separate non-trivial analysis on the data declaration, which can be considered future work. When these fix-point definitions are found, simple rules like the ones presented
+in this algorithm can be applied and the eliminator can be generated.
+
+\subsubsection{The Eliminator Type Class}
+\label{ssub:TheEliminatorTypeClass}
+Because eliminators could be useful in other circumstances than in the induction tactic, it could be useful to allow access to them using a standardized interface. One way this could be allowed is to define
+a general type class for eliminators such as the one shown in Figure~\ref{fig:elimtc}.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting{examples/elimtc.idr}
+\end{CenteredBox}
+\caption{Type class for Eliminators}
+\label{fig:elimtc}
+\end{figure}
+
+It seems however that this kind of type class definitions, where the class arguments are left unused, is currently not supported in Idris. Until this get supported, a special keyword `\texttt{elim\_for}' is provided to access the generated eliminators.
+
 
 \subsection{The Induction Tactic}
 \label{sub:TheInductionTactic}
 The induction tactic takes a variable name as input and proceeds in two phases: extracting the motive from the current goal, and applying the eliminator on the motive possibly creating new goals. Figure~\ref{fig:indtac} shows
-the pseudocode for the induction tactic algorithm.
+the pseudocode for the induction tactic algorithm (see Appendix~\ref{sec:InductionTactic} for actual implementation).
 
 \begin{figure}[H]
   \begin{center}
     \begin{algorithmic}[1]
-    \Procedure{Induction}{$name, goal$}
+    \Procedure{Induction}{$name$}
+    \State $goal \gets \Call{Goal}{\null}$
     \State $\left(termValue, termType\right) \gets \Call{Check}{name}$
     \State $\Call{Normalise}{termType}$
     \State $\left(typeName, typeArguments\right) \gets \Call{UnApply}{termType}$
@@ -382,22 +399,141 @@ the pseudocode for the induction tactic algorithm.
 \label{fig:indtac}
 \end{figure}
 
-The algorithm starts by first retrieving the relevant term value and type from the context, and then normalising the type. The next steps is to retrieve the eliminator from context and decomposing it into its various parts
-(parameters, motive type, etc.). The most important part of the tactic is the abstraction of the motive from the current goal. This is done by creating lambda function for the indices and term in the goal that fits the motive type,
-and replacing all usages of the indices and term to use the names bound in the lambda value. For example, given the goal `\texttt{n = length xs}' where `\texttt{xs : Vect n a}', the algorithm abstract all instances of `\texttt{xs}' and `\texttt{n}' such that
+The algorithm starts by retrieving the relevant term value and type from the context, and then normalising the type. The next steps are to retrieve the eliminator from context and decomposing it into its various parts
+(parameters, motive type, etc.). The most important part of the tactic is the abstraction of the motive from the current goal. This is done by abstracting the term to proof and its indices from its goal as arguments to an anonymous function that conforms to the motive type in the eliminator. For example, given the goal `\texttt{n = length xs}' where `\texttt{xs : Vect n a}', the algorithm abstract all instances of `\texttt{xs}' and `\texttt{n}' such that
 the motive is `\texttt{$\lambda$ m, ys $\Rightarrow$ m = length ys}'.
-The algorithm proceeds by creating new holes for each of the messages, in order to create the new goals necessary to proof the motive (\textit{i.e.} the induction steps) and removes the current goal from the context.
-Finally the eliminator is called with parameters, the motive, the generated holes and the old goals extracted indices and value. In order to aid proving, the result is specialised before being returned, \textit{i.e.} lambda arguments are normalised
+The algorithm proceeds by creating new holes for each of the messages, in order to create the goals necessary to proof the motive (\textit{i.e.} the inductive steps) and removes the current goal from the context.
+Finally the eliminator is called with the parameters, the motive, the generated holes and the extracted indices and value from the old goal. In order to aid proving, the result is specialised before being returned, \textit{i.e.} lambda arguments are normalised
 where possible.
 
-\textbf{NOTE:} Write about limitations of induction tactic
+\subsubsection{Current State of the Induction Tactic}
+\label{ssub:CurrentStateoftheInductionTactic}
+Due to time constraints, the induction tactic was only implemented for types without arguments (it is however still possible to do inductive proofs by directly using the eliminators).
+The limitation is mainly due to the current lack of distinction between parameters and indices at TT level, and some additional work is needed to propagate that information from Idris.
+Nonetheless, the algorithm presented above is generalised for all cases and when the type arguments can be differentiated it should be relatively easy to make it work for all data types with eliminators.
+
 \section{Evaluation}
 \label{sec:Evaluation}
+To evaluate the generation of eliminators and the induction tactic, a test file (see Appendix~\ref{sec:InductionTestFile}) was created with various interesting data-structures and some inductive proofs.
+Additionally, the elimination generation algorithm was tried on all inductive data-types in the standard library.
+
+\subsection{Evaluating Elimination Generation}
+\label{sub:EvaluatingEliminationGeneration}
+In the general case, it seems that the elimination generation works correctly for various kinds of inductive data structures. This has been confirmed by the following test cases:
+\begin{enumerate}
+  \item Basic non-inductive data types such as unit, boolean and pairs
+  \item Simple inductive types such as natural numbers
+  \item Inductive types with both simple and complex type arguments, such as lists and binary trees
+  \item Polymorphic recursive types like finger trees
+  \item Mutually inductive data types such as odd-even proof objects
+\end{enumerate}
+
+However, during the test on the standard library, issues were discovered regarding type declarations with implicit arguments that were not handled correctly.
+Since implicit arguments do not differ semantically from explicit arguments in the eliminator, it should be relatively simple to correct this issue. However, due to time constraints, this was left as future work.
+
+\subsection{Inductive Proofs}
+\label{sub:InductiveProofs}
+To test if the eliminators and induction tactic worked as indented various inductive proofs were performed. For types supported by the induction tactics like natural numbers, the proofs was carried exclusively using tactic scripts.
+
+For other data types such as lists and binary trees, the eliminators were written manually and each of the inductive steps was left as a hole. In other words, the induction tactic was simulated manually using the eliminators.
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=127, lastline=135]{examples/test/test.idr}
+\end{CenteredBox}
+\caption{Proof for \texttt{$n + 0 = n$} using the induction tactic}
+\label{fig:proofnplusoindtac}
+\end{figure}
+
+Figure~\ref{fig:proofnplusoindtac} shows the proof for `\texttt{n + 0 = 0}' again, this time done using the induction tactic. Because the induction tactic creates two branches for natural numbers, it can
+be observed that the `\texttt{trivial}' tactic is applied twice in the proof script, when normally it would finish the proof script. What can also be observed in the proof script is that it was possible to rewrite using
+the induction hypothesis, which is necessary if the step case has to be proven.
+
+The induction tactic was used for proving common properties on natural numbers, like plus commutativity and associativity, with good results.
+Similarly, the eliminators worked perfectly where the induction tactic was not yet implemented.
+
 \section{Conclusion}
 \label{sec:Conclusion}
+In this report I had presented an algorithm for generating eliminators for inductive data types in Idris. I conclude that this was generally achieved for both inductive and inductive-inductive data types, regarding of complexity.
+Additionally, with simple modification to how implicits are handled, it should be possible to correctly generate eliminators for most types in the standard library except for inductive-recursive cases.
+
+I also conclude that the generated eliminators were successfully used to create a tactic for inductive proofs. While the current implementation was lacking support for types with arguments, only small modifications were necessary
+to support all data structures which had eliminators.
+
 \bibliography{Report}
 
 \pagebreak
 \appendix
+\section{Induction Test File}
+\label{sec:InductionTestFile}
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=1, lastline=68]{examples/test/test.idr}
+\end{CenteredBox}
+\caption{Various Data-types and Properties for Testing Eliminator Generation and Induction Tactic}
+\label{fig:testfile}
+\end{figure}
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=70, lastline=99]{examples/test/test.idr}
+\end{CenteredBox}
+\caption{Various Data-types and Properties for Testing Eliminator Generation and Induction Tactic, cont.}
+\label{fig:testfile1}
+\end{figure}
+
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=103]{examples/test/test.idr}
+\end{CenteredBox}
+\caption{Various Data-types and Properties for Testing Eliminator Generation and Induction Tactic, cont., cont.}
+\label{fig:testfile2}
+\end{figure}
+\section{Eliminator Elaboration}
+\label{sec:EliminatorElaboration}
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=1, lastline=68]{examples/elimgen.hs}
+\end{CenteredBox}
+\caption{Implementation of Eliminator Elaboration in Haskell}
+\label{fig:elimgen}
+\end{figure}
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=68, lastline=117]{examples/elimgen.hs}
+\end{CenteredBox}
+\caption{Implementation of Eliminator Elaboration in Haskell, cont.}
+\label{fig:elimgen1}
+\end{figure}
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=119, lastline=179]{examples/elimgen.hs}
+\end{CenteredBox}
+\caption{Implementation of Eliminator Elaboration in Haskell, cont., cont.}
+\label{fig:elimgen2}
+\end{figure}
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting[firstline=179]{examples/elimgen.hs}
+\end{CenteredBox}
+\caption{Implementation of Eliminator Elaboration in Haskell, cont., cont., cont.}
+\label{fig:elimgen3}
+\end{figure}
+
+
+
+\section{Induction Tactic}
+\label{sec:InductionTactic}
+\begin{figure}[H]
+\begin{CenteredBox}
+  \lstinputlisting{examples/inductiontac.hs}
+\end{CenteredBox}
+\caption{Implementation of Induction Tactic in Haskell}
+\label{fig:indtacimpl}
+\end{figure}
+
+
+
 
 \end{document}
